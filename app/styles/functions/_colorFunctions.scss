@@ -1,0 +1,29 @@
+
+
+@use "sass:string";
+
+@function oklch($l, $c, $h) {
+    @return string.unquote("oklch(#{$l} #{$c} #{$h})");
+  }
+
+  
+  @function opacity($color, $alpha) {
+    // Assumes color is in string form like oklch(...)
+    @if str-index($color, "oklch(") == 1 {
+      $body: string.slice($color, 7, string.length($color) - 1);
+      @return string.unquote("oklch(#{$body} / #{$alpha})");
+    }
+    // That slash / is required by modern CSS color syntax to define opacity inside a color.
+
+    @return string.unquote("#{$color} / #{$alpha}");
+  }
+  
+
+
+
+
+  
+  
+
+
+  

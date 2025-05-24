@@ -1,0 +1,7 @@
+@use 'sass:map';
+
+@mixin inject-theme($theme) {
+  @each $key, $value in $theme {
+    #{"--" + $key}: #{$value};
+  }
+}

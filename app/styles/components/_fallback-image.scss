@@ -1,0 +1,27 @@
+.image-wrapper-bike {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9; // Keeps consistent aspect ratio
+    max-width: 400px;     // Optional: limit on larger screens
+           // Optional: center the image
+  }
+  
+  .fallback-image-bike {
+    object-fit: cover;
+    border-radius: 6px;    // Optional: rounded corners
+  }
+
+  .image-wrapper-avatar {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9; // Keeps consistent aspect ratio
+    max-width: 400px;     // Optional: limit on larger screens
+           // Optional: center the image
+  }
+  
+  .fallback-image-avatar {
+    object-fit: cover;
+    border-radius: 6px;    // Optional: rounded corners
+  }
+  
+  

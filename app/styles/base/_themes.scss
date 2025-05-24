@@ -1,0 +1,77 @@
+// ===========================
+// Theme Colors and Tokens (fixed for SCSS compatibility)
+// ===========================
+
+@use 'sass:string';
+@use 'variables' as *;
+@use './_colors';
+@use './_mixins' as *;
+
+
+// ===========================
+// Utility Tokens
+// ===========================
+
+$image_grayscale: 0;
+$image_opacity: 100%;
+
+// Backdrop
+$backdrop_color_light: rgba(255, 255, 255, 0.1);
+$backdrop_color_dark: rgba(0, 0, 0, 0.1);
+
+// Shadows
+$shadow_sm_light: 0 1px 2px rgba(0, 0, 0, 0.04);
+$shadow_md_light: 0px 0.6rem 2.4rem rgba(0, 0, 0, 0.06);
+$shadow_lg_light: 0 2.4rem 3.2rem rgba(0, 0, 0, 0.12);
+
+$shadow_sm_dark: 0 1px 2px rgba(255, 255, 255, 0.04);
+$shadow_md_dark: 0px 0.6rem 2.4rem rgba(255, 255, 255, 0.06);
+$shadow_lg_dark: 0 2.4rem 3.2rem rgba(255, 255, 255, 0.12);
+
+// Border Radius
+$border_radius_tiny: 3px;
+$border_radius_sm: 5px;
+$border_radius_md: 7px;
+$border_radius_lg: 9px;
+
+// ===========================
+// Theme Maps
+// ===========================
+
+$light-theme: (
+  "image-grayscale": $image_grayscale,
+  "image-opacity": $image_opacity,
+  "backdrop-color": $backdrop_color_light,
+  "shadow-sm": $shadow_sm_light,
+  "shadow-md": $shadow_md_light,
+  "shadow-lg": $shadow_lg_light,
+  "border-radius-tiny": $border_radius_tiny,
+  "border-radius-sm": $border_radius_sm,
+  "border-radius-md": $border_radius_md,
+  "border-radius-lg": $border_radius_lg
+);
+
+$dark-theme: (
+  "image-grayscale": $image_grayscale,
+  "image-opacity": $image_opacity,
+  "backdrop-color": $backdrop_color_dark,
+  "shadow-sm": $shadow_sm_dark,
+  "shadow-md": $shadow_md_dark,
+  "shadow-lg": $shadow_lg_dark,
+  "border-radius-tiny": $border_radius_tiny,
+  "border-radius-sm": $border_radius_sm,
+  "border-radius-md": $border_radius_md,
+  "border-radius-lg": $border_radius_lg
+);
+
+// ===========================
+// Theme Injection
+// ===========================
+
+:root {
+  @include inject-theme($light-theme);
+}
+
+[data-theme='dark'] {
+  @include inject-theme($dark-theme);
+}

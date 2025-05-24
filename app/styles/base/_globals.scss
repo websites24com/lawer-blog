@@ -1,0 +1,54 @@
+@use '../base/colors' as *;
+@use '../functions/colorFunctions' as *;
+
+// 1em = 16px (by default)
+
+$bp-1200-desktop: 75em;     // 1200px - Large desktop
+$bp-1100-laptop: 68.75em;   // 1100px - Standard laptop
+$bp-900-tablet: 56.25em;    // 900px - Landscape tablet
+$bp-600-mobile: 37.5em;     // 600px - Large mobile
+$bp-500-phone: 31.25em;     // 500px - Standard phone
+
+* {
+    margin: 0;
+    padding: 0;
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: inherit;
+}
+
+html {
+    
+    box-sizing: border-box;
+    font-size: 62.5%; // 1rem = 10px, 10px/16px = 62.5%
+
+    @media only screen and (max-width: $bp-1100-laptop) {
+        font-size: 50%;
+    }
+}
+
+body {
+    font-family: 'Open Sans', sans-serif;
+    font-weight: 400;
+    line-height: 1.6;
+    background-color: $color-zinc-50;
+ 
+    
+      
+
+    // background-size: cover;
+    // background-repeat: no-repeat;
+
+    min-height: 100vh;
+    transition:
+    background-color 0.6s ease-in-out,
+    color 0.6s ease-in-out,
+    border-color 0.6s ease-in-out,
+    box-shadow 0.6s ease-in-out;
+
+
+}
+

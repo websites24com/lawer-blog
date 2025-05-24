@@ -1,30 +1,33 @@
-// app/layout.tsx
-import type { Metadata } from 'next';
+import '@/app/styles/main.scss';
+import { Providers } from './providers';
+import { Metadata } from 'next';
+import { Toaster } from 'react-hot-toast';
+import { ThemeProvider } from 'next-themes';
+import Header from '@/app/components/Header'; // 👈 import your header
 
 export const metadata: Metadata = {
-  title: 'Lawyer Blog',
-  description: 'Informative blog about legal topics and property law.',
+  title: {
+    default: 'BikeApp',
+    template: '%s | BikeApp',
+  },
 };
 
-export default function RootLayout({
+export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body>
-        <header>
-          <nav>
-            <a href="/">Home</a> | <a href="/blog">Blog</a>
-          </nav>
-        </header>
-
-        {children}
-
-        <footer>
-          <p>© 2025 Lawyer Blog</p>
-        </footer>
+        <ThemeProvider attribute="data-theme" defaultTheme="light">
+          <Providers>
+            <Toaster />
+            <Header /> {/* ✅ your theme toggle is here */}
+            <main>{children}</main>
+          </Providers>
+        </ThemeProvider>
       </body>
     </html>
   );
+}
