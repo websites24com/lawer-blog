@@ -1,3 +1,7 @@
+// ==========================
+// POSTS
+// ==========================
+
 export type Comment = {
   id: number;
   name: string;
@@ -9,6 +13,27 @@ export type Comment = {
 export type Category = {
   id: number;
   name: string;
+  slug: string;
+};
+
+export type CategoryRow = {
+  id: number;
+};
+
+export type PostRow = {
+  id: number;
+  slug: string;
+  title: string;
+  content: string;
+  excerpt: string;
+  created_at: string; // or Date if you're returning raw Date
+  updated_at: string;
+  featured_photo: string;
+  status: 'pending' | 'approved' | 'draft' | 'declined';
+  category: string;
+  first_name: string;
+  last_name: string;
+  avatar_url: string | null;
 };
 
 export type PostSummary = {
@@ -23,7 +48,9 @@ export type PostSummary = {
     last_name: string;
   };
   avatar_url: string | null;
-  followed_by_current_user: boolean; // ✅ NEW
+  featured_photo: string | null;
+  status: 'pending' | 'approved' | 'draft' | 'declined';
+  followed_by_current_user: boolean;
 };
 
 export type PostWithDetails = {
@@ -34,8 +61,8 @@ export type PostWithDetails = {
   excerpt: string;
   created_at: string;
   updated_at: string;
-  featured_photo: string | null; // ✅ add this
-  status: 'pending' | 'approved' | 'draft' | 'declined'; // ✅ optional if you want status
+  featured_photo: string | null;
+  status: 'pending' | 'approved' | 'draft' | 'declined';
   category: string;
   followed_by_current_user: boolean;
   user: {
@@ -51,8 +78,10 @@ export type PostWithDetails = {
   }[];
 };
 
+// ==========================
+// USERS
+// ==========================
 
-// Auth user row
 export type UserRecord = {
   id: number;
   email: string;
@@ -62,7 +91,6 @@ export type UserRecord = {
   role: 'USER' | 'MODERATOR' | 'ADMIN';
 };
 
-// User (Advertiser) Info
 export type UserSummary = {
   id: number;
   first_name: string;
@@ -71,6 +99,8 @@ export type UserSummary = {
   phone: string;
   chat_app: 'WhatsApp' | 'Telegram' | 'Signal' | 'Messenger' | 'None';
   avatar_url: string;
+  role: 'USER' | 'MODERATOR' | 'ADMIN';
+  status: 'pending' | 'approved' | 'declined' | 'banned';
 };
 
 export type UserRow = {
@@ -85,5 +115,6 @@ export type UserRow = {
   role: 'USER' | 'MODERATOR' | 'ADMIN';
   provider: string | null;
   provider_account_id: string | null;
+  status: 'pending' | 'approved' | 'declined' | 'banned';
   created_at: string;
 };

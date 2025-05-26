@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import { auth } from '@/app/lib/auth';
+import Link from 'next/link';
 
 export default async function AdminPage() {
   const session = await auth();
@@ -12,26 +13,21 @@ export default async function AdminPage() {
   }
 
   return (
-    <main className="max-w-4xl mx-auto px-4 py-10">
-      <h1 className="text-3xl font-bold mb-6">Admin Dashboard</h1>
+    <main >
+      <h1 >Admin Dashboard</h1>
 
-      <div className="space-y-4">
+      <div>
         <div>
-          <a
-            href="/admin/posts"
-            className="block p-4 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-          >
+          <Link
+            href="/admin/posts">
             Manage Posts
-          </a>
+          </Link>
         </div>
 
         <div>
-          <a
-            href="/admin/users"
-            className="block p-4 bg-green-600 text-white rounded-md hover:bg-green-700"
-          >
+          <Link href="/admin/users">
             Manage Users
-          </a>
+          </Link>
         </div>
       </div>
     </main>

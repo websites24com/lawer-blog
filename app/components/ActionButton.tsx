@@ -1,17 +1,23 @@
 'use client';
 
 type Props = {
-  onClick: () => void;
+  onClick?: () => void;
+  type?: 'button' | 'submit' | 'reset';
   loading?: boolean;
+  disabled?: boolean; // ✅ add this line
   active?: boolean;
   children: React.ReactNode;
   title?: string;
   className?: string;
 };
 
+
+
 export default function ActionButton({
   onClick,
+  type = 'button',
   loading = false,
+  disabled = false, // ✅ add this default
   children,
   title,
   className = '',
@@ -19,7 +25,8 @@ export default function ActionButton({
   return (
     <button
       onClick={onClick}
-      disabled={loading}
+      type={type}
+      disabled={loading || disabled} // ✅ combine loading and manual disabling
       title={title}
       className={className}
     >
@@ -27,3 +34,4 @@ export default function ActionButton({
     </button>
   );
 }
+

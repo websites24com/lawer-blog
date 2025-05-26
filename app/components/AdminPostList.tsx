@@ -9,7 +9,7 @@ import ConfirmDeleteDialog from '@/app/components/ConfirmDeleteDialog';
 import AdminPostItem from '@/app/components/AdminPostItem';
 import { useRouter } from 'next/navigation';
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50];
 
 export default function AdminPostList() {
   const [posts, setPosts] = useState<PostSummary[]>([]);
@@ -17,6 +17,7 @@ export default function AdminPostList() {
   const [filterText, setFilterText] = useState('');
   const [isPending, startTransition] = useTransition();
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
   const [currentPage, setCurrentPage] = useState({
     pending: 1,
     approved: 1,
@@ -40,7 +41,7 @@ export default function AdminPostList() {
     loadPosts();
   }, []);
 
-  const confirmDelete = (id: number) => setDeleteId(id);
+
 
   const handleDeleteConfirmed = async () => {
     if (!deleteId) return;
@@ -57,21 +58,7 @@ export default function AdminPostList() {
     });
   };
 
-  const handleStatus = async (id: number, status: 'approved' | 'declined' | 'draft') => {
-    startTransition(async () => {
-      try {
-        await updatePostStatus(id, status);
-        toast.success(`Post ${status}`);
-        setPosts((prev) =>
-          prev.map((post) =>
-            post.id === id ? { ...post, status } : post
-          )
-        );
-      } catch {
-        toast.error('Status update failed');
-      }
-    });
-  };
+  
 
   const sortPosts = (arr: PostSummary[]) => {
     return [...arr].sort((a, b) => {
@@ -97,14 +84,14 @@ export default function AdminPostList() {
 
   const getPagedPosts = (arr: PostSummary[], status: string) => {
     const sorted = sortPosts(arr.filter((post) => post.status === status));
-    const start = (currentPage[status as keyof typeof currentPage] - 1) * PAGE_SIZE;
-    return sorted.slice(start, start + PAGE_SIZE);
+    const start = (currentPage[status as keyof typeof currentPage] - 1) * pageSize;
+    return sorted.slice(start, start + pageSize);
   };
 
   const renderPagination = (status: keyof typeof currentPage, total: number) => {
-    const pageCount = Math.ceil(total / PAGE_SIZE);
+    const pageCount = Math.ceil(total / pageSize);
     return (
-      <div>
+      <div style={{ marginTop: '0.5rem' }}>
         {Array.from({ length: pageCount }, (_, i) => (
           <ActionButton
             key={i}
@@ -118,11 +105,13 @@ export default function AdminPostList() {
     );
   };
 
+  const count = (status: string) => posts.filter(p => p.status === status).length;
+
   return (
     <div>
       <h1>All Posts</h1>
 
-      <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+      <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
         <div>
           <label htmlFor="sort">Sort by: </label>
           <select
@@ -136,21 +125,33 @@ export default function AdminPostList() {
             <option value="category">Category</option>
           </select>
         </div>
+
+        <div>
+          
+        <label htmlFor="pageSize">Show: </label>
+        <select id="pageSize" value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))}>
+          {PAGE_SIZE_OPTIONS.map(size => (
+            <option key={size} value={size}>{size} per page</option>
+          ))}
+        </select>
+        </div>
+
         <input
           type="text"
           placeholder="Filter by title, category, or author"
           value={filterText}
           onChange={(e) => setFilterText(e.target.value)}
         />
+
         <ActionButton onClick={() => router.push('/admin/users')}>
           Manage Users
         </ActionButton>
       </div>
 
-      <div style={{ display: 'flex', gap: '2rem' }}>
+      <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
         {['pending', 'approved', 'declined', 'draft'].map((status) => (
-          <div key={status} style={{ flex: 1 }}>
-            <h2>{status[0].toUpperCase() + status.slice(1)}</h2>
+          <div key={status} style={{ flex: 1, minWidth: '300px' }}>
+            <h2>{status[0].toUpperCase() + status.slice(1)} ({count(status)})</h2>
             {getPagedPosts(filteredPosts, status).map((post) => (
               <AdminPostItem
                 key={post.id}

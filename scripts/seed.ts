@@ -26,6 +26,7 @@ async function seed() {
       chat_app ENUM('WhatsApp', 'Telegram', 'Signal', 'Messenger', 'None') DEFAULT 'None',
       avatar_url TEXT,
       role ENUM('USER', 'MODERATOR', 'ADMIN') DEFAULT 'USER',
+      status ENUM('pending', 'approved', 'declined', 'banned') DEFAULT 'approved',
       provider VARCHAR(50),
       provider_account_id VARCHAR(255),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -87,13 +88,13 @@ async function seed() {
   const hashedPassword = await bcrypt.hash('secret123', 10);
   const userIds = [];
 
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 20; i++) {
     const email = faker.internet.email();
     console.log(`✅ User created: ${email} → password: secret123`);
 
     const [result] = await connection.query(
-      `INSERT INTO users (first_name, last_name, email, password, phone, chat_app, avatar_url, role, provider, provider_account_id) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO users (first_name, last_name, email, password, phone, chat_app, avatar_url, role, status, provider, provider_account_id) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         faker.person.firstName(),
         faker.person.lastName(),
@@ -103,6 +104,7 @@ async function seed() {
         faker.helpers.arrayElement(['WhatsApp', 'Telegram', 'Signal', 'Messenger', 'None']),
         `/uploads/avatars/${faker.system.fileName()}`,
         faker.helpers.arrayElement(['USER', 'MODERATOR', 'ADMIN']),
+        faker.helpers.arrayElement(['approved', 'pending', 'declined', 'banned']),
         'credentials',
         faker.string.uuid()
       ]

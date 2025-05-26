@@ -21,7 +21,7 @@ export default function ImageWithFallback({
   wrapperClassName,
 }: Props) {
   const defaultFallback =
-    imageType === 'avatar' ? '/avatars/default.jpg' : '/photos/phphoto.jpg';
+    imageType === 'avatar' ? '/uploads/avatars/default.jpg' : '/uploads/posts/default.jpg';
 
   const [imgSrc, setImgSrc] = useState(
     src && src.trim() !== '' ? src : fallbackSrc || defaultFallback

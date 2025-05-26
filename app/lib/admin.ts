@@ -1,7 +1,5 @@
-// app/lib/admin.ts
-
 import { db } from '@/app/lib/db';
-import type { PostSummary } from '@/app/lib/definitions';
+import type { PostSummary, Category } from '@/app/lib/definitions';
 
 export async function getAllPostsForAdmin(): Promise<PostSummary[]> {
   const [rows] = await db.query<any[]>(
@@ -25,7 +23,7 @@ export async function getAllPostsForAdmin(): Promise<PostSummary[]> {
     `
   );
 
-  return rows.map((row) => ({
+  return (rows as any[]).map((row) => ({
     id: row.id,
     slug: row.slug,
     title: row.title,
@@ -35,6 +33,7 @@ export async function getAllPostsForAdmin(): Promise<PostSummary[]> {
     category: row.category,
     status: row.status,
     followed_by_current_user: false,
+    avatar_url: row.avatar_url,
     user: {
       first_name: row.first_name,
       last_name: row.last_name,
@@ -44,6 +43,10 @@ export async function getAllPostsForAdmin(): Promise<PostSummary[]> {
 }
 
 export async function deletePost(postId: number): Promise<void> {
-    await db.query('DELETE FROM posts WHERE id = ?', [postId]);
-  }
+  await db.query('DELETE FROM posts WHERE id = ?', [postId]);
+}
 
+export async function getAllCategories(): Promise<Category[]> {
+  const [rows] = await db.query<any[]>('SELECT id, name FROM categories ORDER BY name');
+  return rows as Category[];
+}

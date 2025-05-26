@@ -1,20 +1,17 @@
-// ✅ Informuje Next.js, że ta trasa ma być generowana dynamicznie (SSR)
 export const dynamic = 'force-dynamic';
 
 import { getPostBySlug } from '@/app/lib/posts';
 import type { PostWithDetails } from '@/app/lib/definitions';
 import { notFound } from 'next/navigation';
-import Image from 'next/image';
 import { auth } from '@/app/lib/auth';
+import ImageWithFallback from '@/app/components/ImageWithFallback';
 
 type Props = {
   params: { slug: string };
 };
 
 export default async function BlogPostPage({ params }: Props) {
-  // ✅ Next.js 15+ needs this to be wrapped — we ensure params is always awaited internally
   const slug = `${params.slug}`;
-
   const session = await auth();
   const userId = session?.user?.id || 0;
 
@@ -22,58 +19,54 @@ export default async function BlogPostPage({ params }: Props) {
   if (!post) return notFound();
 
   return (
-    <main className="max-w-3xl mx-auto px-4 py-10">
-      <h1 className="text-4xl font-bold mb-6">{post.title}</h1>
+    <main>
+      <h1>{post.title}</h1>
 
-      <div className="flex items-center gap-4 mb-6">
-        {post.user.avatar_url && (
-          <Image
+      <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', marginBottom: '1rem' }}>
+        <div style={{ width: '50px', height: '50px', position: 'relative' }}>
+          <ImageWithFallback
             src={post.user.avatar_url}
+            fallbackSrc="/uploads/avatars/default.jpg"
             alt={`${post.user.first_name} ${post.user.last_name}`}
-            width={50}
-            height={50}
-            className="rounded-full"
+            imageType="avatar"
+            className=""
+            wrapperClassName=""
           />
-        )}
+        </div>
         <div>
-          <p className="font-medium">
-            {post.user.first_name} {post.user.last_name}
-          </p>
-          <p className="text-sm text-gray-500">
-            {new Date(post.created_at).toLocaleDateString()} • {post.category}
-          </p>
+          <p>{post.user.first_name} {post.user.last_name}</p>
+          <p>{new Date(post.created_at).toLocaleDateString()} • {post.category}</p>
         </div>
       </div>
 
-      {/* ✅ Featured image rendering */}
-      {post.featured_photo && (
-        <div className="mb-8">
-          <Image
+      <div style={{ borderBottom: '1px solid #ccc', padding: '1rem 0' }}>
+        <div style={{ width: '100%', maxWidth: '400px', height: '200px', position: 'relative', marginTop: '1rem' }}>
+          <ImageWithFallback
             src={
-              post.featured_photo.startsWith('/')
-                ? post.featured_photo
-                : `/uploads/posts/${post.featured_photo}`
+              post.featured_photo
+                ? (post.featured_photo.startsWith('/')
+                    ? post.featured_photo
+                    : `/uploads/posts/${post.featured_photo}`)
+                : null
             }
-            alt="Featured"
-            width={640}
-            height={360}
-            className="w-full object-cover rounded-md"
+            fallbackSrc="/uploads/posts/default.jpg"
+            alt="Featured Post"
+            imageType="bike"
+            className=""
+            wrapperClassName=""
           />
         </div>
-      )}
+      </div>
 
-      <article
-        className="prose prose-lg mb-10"
-        dangerouslySetInnerHTML={{ __html: post.content }}
-      />
+      <article dangerouslySetInnerHTML={{ __html: post.content }} />
 
       <section>
-        <h2 className="text-2xl font-semibold mb-4">Comments</h2>
+        <h2>Comments</h2>
         {post.comments.length === 0 && <p>No comments yet.</p>}
-        <ul className="space-y-4">
+        <ul>
           {post.comments.map((comment, idx) => (
-            <li key={idx} className="border border-gray-200 p-4 rounded-md">
-              <p className="font-semibold">
+            <li key={idx}>
+              <p>
                 {comment.name} ({comment.email || 'anonymous'})
               </p>
               <p>{comment.message}</p>

@@ -15,25 +15,27 @@ export default function UserPage() {
   const [userData, setUserData] = useState<any>(null);
   const [isPending, startTransition] = useTransition();
 
-  
-
   useEffect(() => {
-    if (status === 'authenticated' && session?.user) {
+    if (status === 'authenticated') {
+      if (session?.user?.role !== 'USER') {
+        router.push('/admin'); // 🚫 Redirect non-USERs
+        return;
+      }
+
       const query = session.user.email
         ? `email=${encodeURIComponent(session.user.email)}`
         : session.user.id
         ? `providerId=${encodeURIComponent(session.user.id)}`
         : '';
-  
+
       if (!query) return;
-  
+
       fetch(`/api/user?${query}`)
         .then(res => res.json())
         .then(data => setUserData(data))
         .catch(err => console.error('❌ Failed to fetch user data', err));
     }
-  }, [status, session]);
-  
+  }, [status, session, router]);
 
   if (status === 'loading') return <p>Loading...</p>;
   if (!session) {
@@ -138,7 +140,6 @@ export default function UserPage() {
                 <div>
                   <ActionButton onClick={() => router.push(`/blog/${post.slug}`)}>View</ActionButton>
                   <FollowButton postId={post.id} initiallyFollowing={true} onToggle={() => handleUnfollow(post.id)} />
-
                 </div>
               </li>
             ))}
