@@ -28,7 +28,7 @@
     "sharp": "^0.34.2",
     "slugify": "^1.6.6",
     "uuid": "^11.1.0",
-    "zod": "^3.25.20"
+    "zod": "^3.25.29"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

@@ -46,12 +46,22 @@ export default function AdminPostItem({ post, onUpdate, onDelete }: Props) {
     });
   };
 
+  console.log('📸 post.featured_photo:', post.featured_photo);
+
   return (
     <div style={{ borderBottom: '1px solid #ccc', padding: '1rem 0' }}>
       {post.featured_photo && (
-        <div style={{ width: '100%', maxWidth: '400px', height: '200px', position: 'relative', marginTop: '1rem' }}>
+        <div
+          style={{
+            width: '100%',
+            maxWidth: '400px',
+            height: '200px',
+            position: 'relative',
+            marginTop: '1rem'
+          }}
+        >
           <ImageWithFallback
-            src={post.featured_photo}
+           src={`/uploads/posts/${post.featured_photo}`}
             alt="Featured Post"
             imageType="bike"
             className=""

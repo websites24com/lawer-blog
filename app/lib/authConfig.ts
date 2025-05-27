@@ -60,15 +60,15 @@ export const authConfig: NextAuthOptions = {
     async jwt({ token, user, account }) {
       if (user && account) {
         const email = user.email ?? null;
-
+  
         if (account.provider !== 'credentials') {
           const [rows] = await db.query(
             'SELECT * FROM users WHERE provider = ? AND provider_account_id = ? LIMIT 1',
             [account.provider, account.providerAccountId]
           );
-
+  
           let dbUser = (rows as UserRecord[])[0];
-
+  
           if (!dbUser && email) {
             const [existingEmailUserRows] = await db.query(
               'SELECT * FROM users WHERE email = ? LIMIT 1',
@@ -76,15 +76,15 @@ export const authConfig: NextAuthOptions = {
             );
             dbUser = (existingEmailUserRows as UserRecord[])[0];
           }
-
+  
           if (!dbUser) {
             const nameParts = (user.name || '').split(' ');
             const firstName = nameParts[0] || 'User';
             const lastName = nameParts.slice(1).join(' ') || ' ';
-
+  
             const [result]: any = await db.query(
-              `INSERT INTO users (first_name, last_name, email, password, provider, provider_account_id, location)
-               VALUES (?, ?, ?, '', ?, ?, ST_PointFromText(?))`,
+              `INSERT INTO users (first_name, last_name, email, password, provider, provider_account_id)
+               VALUES (?, ?, ?, '', ?, ?)`,
               [
                 firstName,
                 lastName,
@@ -94,26 +94,37 @@ export const authConfig: NextAuthOptions = {
                 'POINT(0 0)',
               ]
             );
-
-            token.id = result.insertId;
+  
+            token.id = Number(result.insertId);
             token.role = 'USER';
           } else {
-            token.id = dbUser.id;
+            token.id = Number(dbUser.id);
             token.role = dbUser.role;
           }
         } else {
-          token.id = user.id;
+          token.id = Number(user.id);       // ✅ NAJWAŻNIEJSZE!
           token.role = user.role;
         }
       }
-
+  
       return token;
     },
-
+  
     async session({ session, token }) {
-      session.user.id = token.id as number;
-      session.user.role = token.role as string;
+      if (
+        session.user &&
+        typeof token.id === 'number' &&
+        typeof token.role === 'string'
+      ) {
+        session.user.id = token.id;
+        session.user.role = token.role as 'USER' | 'MODERATOR' | 'ADMIN';
+      } else {
+        console.warn('❌ Invalid session token:', token);
+        throw new Error('Invalid session – no ID or role');
+      }
+  
       return session;
     },
-  },
+  }
+  
 };

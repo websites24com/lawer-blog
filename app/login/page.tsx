@@ -1,37 +1,41 @@
 'use client';
 
 import { signIn } from 'next-auth/react';
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import ActionButton from '@/app/components/ActionButton';
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [isPending, startTransition] = useTransition();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    const res = await signIn('credentials', {
-      email,
-      password,
-      redirect: false,
-    });
+    startTransition(async () => {
+      const res = await signIn('credentials', {
+        email,
+        password,
+        redirect: false,
+      });
 
-    if (res?.error) {
-      setError('Invalid email or password');
-    } else {
-      router.push('/');
-    }
+      if (res?.error) {
+        setError('Invalid email or password');
+      } else {
+        router.push('/');
+      }
+    });
   };
 
   return (
     <main>
       <h1>Login</h1>
 
-      <form onSubmit={handleLogin}>
+      <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         <label>Email</label>
         <input
           type="email"
@@ -52,13 +56,21 @@ export default function LoginPage() {
 
         {error && <p style={{ color: 'red' }}>{error}</p>}
 
-        <button type="submit">Login</button>
+        <ActionButton type="submit" loading={isPending}>Login</ActionButton>
       </form>
+      <div>
+<h3>OR</h3>
+</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '1rem' }}>
+      <ActionButton onClick={() => signIn('google', { callbackUrl: '/' })}>
+  Continue with Google
+</ActionButton>
 
-      <hr />
+<ActionButton onClick={() => signIn('facebook', { callbackUrl: '/' })}>
+  Continue with Facebook
+</ActionButton>
 
-      <button onClick={() => signIn('google')}>Continue with Google</button>
-      <button onClick={() => signIn('facebook')}>Continue with Facebook</button>
+      </div>
     </main>
   );
 }
