@@ -50,23 +50,15 @@ export default function AdminPostItem({ post, onUpdate, onDelete }: Props) {
 
   return (
     <div style={{ borderBottom: '1px solid #ccc', padding: '1rem 0' }}>
-      {post.featured_photo && (
-        <div
-          style={{
-            width: '100%',
-            maxWidth: '400px',
-            height: '200px',
-            position: 'relative',
-            marginTop: '1rem'
-          }}
-        >
-          <ImageWithFallback
-           src={`/uploads/posts/${post.featured_photo}`}
-            alt="Featured Post"
-            imageType="bike"
-            className=""
-            wrapperClassName=""
-          />
+  {post.featured_photo && (
+    <div className="image-wrapper">
+      <ImageWithFallback
+        src={post.featured_photo}
+        alt="Featured Post"
+        imageType="bike"
+        className="fallback-image"
+        wrapperClassName="image-wrapper"
+      />
         </div>
       )}
 

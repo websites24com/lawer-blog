@@ -26,7 +26,7 @@ async function seed() {
       chat_app ENUM('WhatsApp', 'Telegram', 'Signal', 'Messenger', 'None') DEFAULT 'None',
       avatar_url TEXT,
       role ENUM('USER', 'MODERATOR', 'ADMIN') DEFAULT 'USER',
-      status ENUM('pending', 'approved', 'declined', 'banned') DEFAULT 'approved',
+      status ENUM('pending', 'approved', 'declined', 'frozen') DEFAULT 'approved',
       provider VARCHAR(50),
       provider_account_id VARCHAR(255),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -104,7 +104,7 @@ async function seed() {
         faker.helpers.arrayElement(['WhatsApp', 'Telegram', 'Signal', 'Messenger', 'None']),
         `/uploads/avatars/${faker.system.fileName()}`,
         faker.helpers.arrayElement(['USER', 'MODERATOR', 'ADMIN']),
-        faker.helpers.arrayElement(['approved', 'pending', 'declined', 'banned']),
+        faker.helpers.arrayElement(['approved', 'pending', 'declined', 'frozen']),
         'credentials',
         faker.string.uuid()
       ]

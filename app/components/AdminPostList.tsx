@@ -1,11 +1,9 @@
 'use client';
 
 import { useEffect, useState, useTransition } from 'react';
-import { updatePostStatus, deletePostAction } from '@/app/actions/admin-posts';
 import type { PostSummary } from '@/app/lib/definitions';
 import toast from 'react-hot-toast';
 import ActionButton from '@/app/components/ActionButton';
-import ConfirmDeleteDialog from '@/app/components/ConfirmDeleteDialog';
 import AdminPostItem from '@/app/components/AdminPostItem';
 import { useRouter } from 'next/navigation';
 
@@ -16,7 +14,6 @@ export default function AdminPostList() {
   const [sortKey, setSortKey] = useState<'date_desc' | 'date_asc' | 'author' | 'category'>('date_desc');
   const [filterText, setFilterText] = useState('');
   const [isPending, startTransition] = useTransition();
-  const [deleteId, setDeleteId] = useState<number | null>(null);
   const [pageSize, setPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
   const [currentPage, setCurrentPage] = useState({
     pending: 1,
@@ -40,25 +37,6 @@ export default function AdminPostList() {
   useEffect(() => {
     loadPosts();
   }, []);
-
-
-
-  const handleDeleteConfirmed = async () => {
-    if (!deleteId) return;
-
-    startTransition(async () => {
-      try {
-        await deletePostAction(deleteId);
-        toast.success('Post deleted');
-        setPosts((prev) => prev.filter((post) => post.id !== deleteId));
-        setDeleteId(null);
-      } catch {
-        toast.error('Delete failed');
-      }
-    });
-  };
-
-  
 
   const sortPosts = (arr: PostSummary[]) => {
     return [...arr].sort((a, b) => {
@@ -127,13 +105,12 @@ export default function AdminPostList() {
         </div>
 
         <div>
-          
-        <label htmlFor="pageSize">Show: </label>
-        <select id="pageSize" value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))}>
-          {PAGE_SIZE_OPTIONS.map(size => (
-            <option key={size} value={size}>{size} per page</option>
-          ))}
-        </select>
+          <label htmlFor="pageSize">Show: </label>
+          <select id="pageSize" value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))}>
+            {PAGE_SIZE_OPTIONS.map(size => (
+              <option key={size} value={size}>{size} per page</option>
+            ))}
+          </select>
         </div>
 
         <input
@@ -170,12 +147,6 @@ export default function AdminPostList() {
           </div>
         ))}
       </div>
-
-      <ConfirmDeleteDialog
-        open={deleteId !== null}
-        onCancel={() => setDeleteId(null)}
-        onConfirm={handleDeleteConfirmed}
-      />
     </div>
   );
 }

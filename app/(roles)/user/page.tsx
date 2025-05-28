@@ -120,7 +120,7 @@ export default function UserPage() {
         <p><strong>Created:</strong> {createdDisplay}</p>
 
         <div className="actions">
-          <ActionButton onClick={() => router.push('/user/update')} title="Update Profile">✏️ Update Profile</ActionButton>
+          <ActionButton onClick={() => router.push('/user/edit')} title="Update Profile">✏️ Update Profile</ActionButton>
           <ActionButton onClick={() => router.push('/user/delete')} title="Delete Account">🗑 Delete Account</ActionButton>
         </div>
       </section>

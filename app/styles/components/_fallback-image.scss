@@ -1,12 +1,13 @@
-.image-wrapper-bike {
+.image-wrapper{
     position: relative;
     width: 100%;
     aspect-ratio: 16 / 9; // Keeps consistent aspect ratio
     max-width: 400px;     // Optional: limit on larger screens
-           // Optional: center the image
+    display: block;
+    margin: 0 auto;      // Optional: center the image
   }
   
-  .fallback-image-bike {
+  .fallback-image{
     object-fit: cover;
     border-radius: 6px;    // Optional: rounded corners
   }
@@ -16,7 +17,8 @@
     width: 100%;
     aspect-ratio: 16 / 9; // Keeps consistent aspect ratio
     max-width: 400px;     // Optional: limit on larger screens
-           // Optional: center the image
+    display: block;
+    margin: 0 auto;// Optional: center the image
   }
   
   .fallback-image-avatar {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition, useEffect } from 'react';
+import { useState, useTransition, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { updateUserInfo, getAllUsers } from '@/app/actions/admin-users';
 import type { UserSummary } from '@/app/lib/definitions';
@@ -12,18 +12,19 @@ import Image from 'next/image';
 export default function AdminUserEditPage() {
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [selectedUser, setSelectedUser] = useState<UserSummary | null>(null);
-  const [form, setForm] = useState({
-    first_name: '',
-    last_name: '',
-    email: '',
-    phone: '',
-    chat_app: 'None',
-    role: 'USER',
-    avatar_url: ''
-  });
+  const [form, setForm] = useState<null | {
+    first_name: string;
+    last_name: string;
+    email: string;
+    phone: string;
+    chat_app: string;
+    role: string;
+    avatar_url: string;
+  }>(null);
+  const [originalAvatar, setOriginalAvatar] = useState<string>('');
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
-  const [originalAvatarUrl, setOriginalAvatarUrl] = useState('');
   const [isPending, startTransition] = useTransition();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -36,7 +37,6 @@ export default function AdminUserEditPage() {
       const user = result.find(u => u.id.toString() === userId);
       if (user) {
         setSelectedUser(user);
-        setOriginalAvatarUrl(user.avatar_url || '');
         setForm({
           first_name: user.first_name,
           last_name: user.last_name,
@@ -46,6 +46,7 @@ export default function AdminUserEditPage() {
           role: user.role,
           avatar_url: user.avatar_url || ''
         });
+        setOriginalAvatar(user.avatar_url || '');
       }
     }
     if (userId) loadUsers();
@@ -60,21 +61,13 @@ export default function AdminUserEditPage() {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setAvatarFile(file);
-    }
-  };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!userId) return;
-
-    startTransition(async () => {
-      try {
-        let uploadedAvatarUrl = originalAvatarUrl;
-
-        if (avatarFile) {
+      // Auto-save avatar when changed
+      startTransition(async () => {
+        try {
           const formData = new FormData();
-          formData.append('avatar', avatarFile);
-          formData.append('userId', userId);
+          formData.append('avatar', file);
+          formData.append('userId', userId!);
 
           const uploadRes = await fetch('/api/avatar', {
             method: 'POST',
@@ -84,11 +77,31 @@ export default function AdminUserEditPage() {
           if (!uploadRes.ok) throw new Error('Upload failed');
 
           const data = await uploadRes.json();
-          uploadedAvatarUrl = data.url;
+          setForm(prev => prev ? { ...prev, avatar_url: data.url } : prev);
+          toast.success('Avatar updated');
+        } catch {
+          toast.error('Avatar upload failed');
         }
+      });
+    }
+  };
 
-        const { avatar_url, ...data } = form;
-        await updateUserInfo(Number(userId), { ...data, avatar_url: uploadedAvatarUrl });
+  const handleDeleteAvatar = () => {
+    setForm(prev => prev ? { ...prev, avatar_url: '' } : prev);
+    setAvatarFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    toast.success('Avatar removed');
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userId || !form) return;
+
+    startTransition(async () => {
+      try {
+        const { avatar_url, ...dataToUpdate } = form;
+        await updateUserInfo(Number(userId), { ...dataToUpdate, avatar_url });
+
         toast.success('User updated');
         router.push('/admin/users');
       } catch {
@@ -97,7 +110,7 @@ export default function AdminUserEditPage() {
     });
   };
 
-  if (!selectedUser) return <p>Loading user...</p>;
+  if (!selectedUser || !form) return <p>Loading user...</p>;
 
   return (
     <div>
@@ -123,35 +136,38 @@ export default function AdminUserEditPage() {
         </select>
 
         <label>Current Avatar:</label>
-        <div style={{ width: '100px', height: '100px', position: 'relative' }}>
+        <div className="image-wrapper-avatar">
           <ImageWithFallback
-            src={originalAvatarUrl}
-            alt="Original avatar"
+            src={avatarFile ? URL.createObjectURL(avatarFile) : form.avatar_url}
+            alt="Avatar preview"
             imageType="avatar"
-            className=""
-            wrapperClassName=""
           />
         </div>
 
-        <input type="file" accept="image/*" onChange={handleFileChange} />
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <ActionButton
+            type="button"
+            onClick={() => {
+              setForm(prev => ({ ...prev!, avatar_url: originalAvatar }));
+              setAvatarFile(null);
+              if (fileInputRef.current) fileInputRef.current.value = '';
+              toast.success('Avatar restored');
+            }}
+          >
+            Restore Original Avatar
+          </ActionButton>
 
-        {avatarFile && (
-          <div>
-            <label>New Avatar Preview:</label>
-            <Image
-              src={URL.createObjectURL(avatarFile)}
-              alt="Avatar preview"
-              width={100}
-              height={100}
-              style={{ objectFit: 'cover' }}
-            />
-          </div>
-        )}
+          <ActionButton
+            type="button"
+            onClick={handleDeleteAvatar}
+          >
+            Delete Avatar
+          </ActionButton>
+        </div>
 
-        <ActionButton
-          onClick={() => {}} // required to satisfy props
-          loading={isPending}
-        >
+        <input type="file" accept="image/*" onChange={handleFileChange} ref={fileInputRef} />
+
+        <ActionButton type="submit" loading={isPending}>
           Save
         </ActionButton>
       </form>
