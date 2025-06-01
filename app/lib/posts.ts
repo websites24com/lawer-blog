@@ -1,9 +1,9 @@
+// File: app/lib/posts.ts
+
 import { db } from '@/app/lib/db';
 import type { PostSummary, PostWithDetails } from '@/app/lib/definitions';
 
-
-// Public 
-
+// Public - Approved posts
 export async function getAllApprovedPosts(userId?: number): Promise<PostSummary[]> {
   const [rows] = await db.query<any[]>(
     `
@@ -51,9 +51,7 @@ export async function getAllApprovedPosts(userId?: number): Promise<PostSummary[
   }));
 }
 
-
-// To user dashboard
-
+// To user dashboard - All posts
 export async function getAllPosts(userId: number): Promise<PostSummary[]> {
   const [rows] = await db.query<any[]>(
     `
@@ -97,11 +95,13 @@ export async function getAllPosts(userId: number): Promise<PostSummary[]> {
   }));
 }
 
+// ✅ Get post with all details for editing
 export async function getPostBySlug(slug: string, userId: number): Promise<PostWithDetails | null> {
   const [rows] = await db.query<any[]>(
     `
     SELECT 
       posts.*,
+      posts.category_id,
       categories.name AS category,
       users.first_name,
       users.last_name,
@@ -115,7 +115,7 @@ export async function getPostBySlug(slug: string, userId: number): Promise<PostW
     LEFT JOIN users ON posts.user_id = users.id
     WHERE posts.slug = ?
     LIMIT 1
-  `,
+    `,
     [userId, slug]
   );
 
@@ -141,6 +141,7 @@ export async function getPostBySlug(slug: string, userId: number): Promise<PostW
     featured_photo: post.featured_photo,
     status: post.status,
     category: post.category,
+    category_id: post.category_id, // ✅ required for EditPostForm
     followed_by_current_user: !!post.followed_by_current_user,
     user: {
       first_name: post.first_name,
@@ -151,3 +152,8 @@ export async function getPostBySlug(slug: string, userId: number): Promise<PostW
   };
 }
 
+// All categories
+export async function getAllCategories(): Promise<{ id: number; name: string }[]> {
+  const [rows] = await db.query('SELECT id, name FROM categories ORDER BY name ASC');
+  return rows as { id: number; name: string }[];
+}

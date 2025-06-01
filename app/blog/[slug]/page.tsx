@@ -1,79 +1,59 @@
-export const dynamic = 'force-dynamic';
-
-import { getPostBySlug } from '@/app/lib/posts';
-import type { PostWithDetails } from '@/app/lib/definitions';
-import { notFound } from 'next/navigation';
-import { auth } from '@/app/lib/auth';
+import Link from 'next/link';
+import { getAllApprovedPosts } from '@/app/lib/posts';
+import type { PostSummary } from '@/app/lib/definitions';
+import FollowButton from '@/app/components/FollowButton';
 import ImageWithFallback from '@/app/components/ImageWithFallback';
 
-type Props = {
-  params: { slug: string };
-};
+function stripHtml(html: string): string {
+  return html.replace(/<[^>]*>?/gm, '');
+}
 
-export default async function BlogPostPage({ params }: Props) {
-  const slug = `${params.slug}`;
-  const session = await auth();
-  const userId = session?.user?.id || 0;
-
-  const post: PostWithDetails | null = await getPostBySlug(slug, userId);
-  if (!post) return notFound();
+export default async function BlogPage() {
+  const posts: PostSummary[] = await getAllApprovedPosts();
 
   return (
     <main>
-      <h1>{post.title}</h1>
+      <h1>Blog</h1>
 
-      <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', marginBottom: '1rem' }}>
-        <div style={{ width: '50px', height: '50px', position: 'relative' }}>
-          <ImageWithFallback
-            src={post.user.avatar_url}
-            fallbackSrc="/uploads/avatars/default.jpg"
-            alt={`${post.user.first_name} ${post.user.last_name}`}
-            imageType="avatar"
-            className=""
-            wrapperClassName=""
-          />
-        </div>
-        <div>
-          <p>{post.user.first_name} {post.user.last_name}</p>
-          <p>{new Date(post.created_at).toLocaleDateString()} • {post.category}</p>
-        </div>
-      </div>
+      {posts.length === 0 && <p>No posts found.</p>}
 
-      <div style={{ borderBottom: '1px solid #ccc', padding: '1rem 0' }}>
-        <div style={{ width: '100%', maxWidth: '400px', height: '200px', position: 'relative', marginTop: '1rem' }}>
-          <ImageWithFallback
-            src={
-              post.featured_photo
-                ? (post.featured_photo.startsWith('/')
-                    ? post.featured_photo
-                    : `/uploads/posts/${post.featured_photo}`)
-                : null
-            }
-            fallbackSrc="/uploads/posts/default.jpg"
-            alt="Featured Post"
-            imageType="bike"
-            className=""
-            wrapperClassName=""
-          />
-        </div>
-      </div>
+      <ul>
+        {posts.map((post) => (
+          <li key={post.id}>
+            <Link href={`/blog/${post.slug}`}>
+               <div style={{ borderBottom: '1px solid #ccc', padding: '1rem 0' }}>
+                    {post.featured_photo && (
+                      <div style={{ width: '100%', maxWidth: '400px', height: '200px', position: 'relative', marginTop: '1rem' }}>
+                        <ImageWithFallback
+                          src={post.featured_photo}
+                          alt="Featured Post"
+                          imageType="bike"
+                          className=""
+                          wrapperClassName=""
+                        />
+                      </div>
+                    )}
+                    </div>
+            </Link>
 
-      <article dangerouslySetInnerHTML={{ __html: post.content }} />
+            <Link href={`/blog/${post.slug}`}>
+              <h2>{post.title}</h2>
+            </Link>
 
-      <section>
-        <h2>Comments</h2>
-        {post.comments.length === 0 && <p>No comments yet.</p>}
-        <ul>
-          {post.comments.map((comment, idx) => (
-            <li key={idx}>
-              <p>
-                {comment.name} ({comment.email || 'anonymous'})
-              </p>
-              <p>{comment.message}</p>
-            </li>
-          ))}
-        </ul>
-      </section>
+            <p>
+              {new Date(post.created_at).toLocaleDateString()} • {post.category} •{' '}
+              {post.user.first_name} {post.user.last_name}
+            </p>
+
+            <FollowButton
+              postId={post.id}
+              initiallyFollowing={post.followed_by_current_user}
+            />
+
+            <p>{stripHtml(post.excerpt)}...</p>
+          </li>
+        ))}
+      </ul>
     </main>
   );
 }

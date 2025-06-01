@@ -1,154 +1,170 @@
 'use client';
 
-import { useEffect, useState, useRef, useTransition } from 'react';
+import { useState, useRef, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { updatePost } from '@/app/actions/admin-posts';
-import type { Category } from '@/app/lib/definitions';
-import ActionButton from '@/app/components/ActionButton';
 import ImageWithFallback from '@/app/components/ImageWithFallback';
 import RichTextEditor from '@/app/components/RichTextEditor';
+import ImageCropModal from '@/app/components/ImageCropModal';
+import ActionButton from '@/app/components/ActionButton';
+import toast from 'react-hot-toast';
 
-export default function EditPostForm({
-  postId,
-  categories,
-  initialForm,
-}: {
-  postId: number;
+import type { PostWithDetails, Category } from '@/app/lib/definitions';
+
+type Props = {
+  post: PostWithDetails;
   categories: Category[];
-  initialForm: {
-    title: string;
-    excerpt: string;
-    content: string;
-    category: string;
-    status: string;
-    featured_photo: string;
-  };
-}) {
-  const [form, setForm] = useState(initialForm);
+};
+
+export default function EditPostForm({ post, categories }: Props) {
+  const [form, setForm] = useState({
+    title: post.title,
+    excerpt: post.excerpt,
+    content: post.content,
+    category_id: post.category_id.toString(),
+    featured_photo: post.featured_photo || '/uploads/posts/default.jpg',
+  });
+
   const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [originalPhoto, setOriginalPhoto] = useState(initialForm.featured_photo);
-  const [isPending, startTransition] = useTransition();
+  const [showCropper, setShowCropper] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
+  // Handles text and select inputs
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setForm(prev => ({ ...prev, [name]: value }));
   };
 
+  // Handles rich text content updates
+  const handleContentChange = (value: string) => {
+    setForm(prev => ({ ...prev, content: value }));
+  };
+
+  // When user selects a file, show cropper
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setPhotoFile(file);
-
-      startTransition(async () => {
-        try {
-          const formData = new FormData();
-          formData.append('photo', file);
-          formData.append('postId', postId.toString());
-
-          const uploadRes = await fetch('/api/admin/posts/upload-photo', {
-            method: 'POST',
-            body: formData
-          });
-
-          if (!uploadRes.ok) throw new Error('Upload failed');
-
-          const data = await uploadRes.json();
-          setForm(prev => ({ ...prev, featured_photo: data.url }));
-        } catch {
-          console.error('Photo upload failed');
-        }
-      });
+      setPhotoFile(e.target.files[0]);
+      setShowCropper(true);
     }
   };
 
-  const handleDeletePhoto = () => {
-    setForm(prev => ({ ...prev, featured_photo: '' }));
-    setPhotoFile(null);
-    if (fileInputRef.current) fileInputRef.current.value = '';
+  // Called when user clicks Delete Photo
+  const handleDeletePhoto = async () => {
+    if (form.featured_photo.includes('/default.jpg')) return;
+
+    try {
+      const res = await fetch('/api/user/posts/delete-photo', {
+        method: 'POST',
+        body: JSON.stringify({ photoPath: form.featured_photo }),
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (res.ok) {
+        toast.success('Photo deleted');
+        // Set fallback image
+        setForm(prev => ({ ...prev, featured_photo: '/uploads/posts/default.jpg' }));
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      } else {
+        toast.error('Delete failed');
+      }
+    } catch (err) {
+      toast.error('Server error');
+    }
   };
 
-  const handleRestorePhoto = () => {
-    setForm(prev => ({ ...prev, featured_photo: originalPhoto }));
-    setPhotoFile(null);
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  };
-
+  // Form submit logic
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
     startTransition(async () => {
       try {
-        await updatePost(postId, form);
-        router.push('/admin/posts');
+        const formData = new FormData();
+        formData.append('title', form.title);
+        formData.append('excerpt', form.excerpt);
+        formData.append('content', form.content);
+        formData.append('category_id', form.category_id);
+        formData.append('old_photo', form.featured_photo);
+
+        // ✅ Always send the current featured_photo (even if fallback)
+        if (form.featured_photo.startsWith('/uploads/posts/')) {
+          formData.append('featured_photo_url', form.featured_photo);
+        }
+
+        const res = await fetch(`/api/user/posts/edit/${post.slug}`, {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!res.ok) throw new Error();
+
+        // ✅ Cleanup unused images in the content
+        await fetch('/api/user/posts/editor/cleanup-images', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            oldContent: post.content,
+            newContent: form.content,
+          }),
+        });
+
+        toast.success('Post updated');
+        router.refresh();
+        router.push('/user');
       } catch {
-        console.error('Update failed');
+        toast.error('Update failed');
       }
     });
   };
 
   return (
-    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-      <label htmlFor="title">Title:</label>
+    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
       <input
-        id="title"
         name="title"
         value={form.title}
         onChange={handleChange}
-        placeholder="Enter post title"
+        placeholder="Title"
+        maxLength={70}
         required
       />
 
-      <label htmlFor="excerpt">Excerpt:</label>
       <textarea
-        id="excerpt"
         name="excerpt"
         value={form.excerpt}
         onChange={handleChange}
-        placeholder="Brief excerpt (max 300 characters)"
+        placeholder="Excerpt"
         maxLength={300}
         required
       />
 
-      <label>Content:</label>
-      <RichTextEditor
-        value={form.content}
-        onChange={(value) => setForm(prev => ({ ...prev, content: value }))}
-      />
+      <RichTextEditor value={form.content} onChange={handleContentChange} />
 
-      <label>Category:</label>
-      <select name="category" value={form.category} onChange={handleChange}>
-        {categories.map((cat) => (
-          <option key={cat.id} value={cat.name}>{cat.name}</option>
+      <select name="category_id" value={form.category_id} onChange={handleChange}>
+        {categories.map(c => (
+          <option key={c.id} value={c.id}>{c.name}</option>
         ))}
       </select>
 
-      <label>Status:</label>
-      <select name="status" value={form.status} onChange={handleChange}>
-        <option value="draft">Draft</option>
-        <option value="pending">Pending</option>
-        <option value="approved">Approved</option>
-        <option value="declined">Declined</option>
-      </select>
-
-      <label>Current Photo:</label>
-      <div className="image-wrapper">
-        <ImageWithFallback
-          src={photoFile ? URL.createObjectURL(photoFile) : form.featured_photo}
-          alt="Post photo preview"
-          imageType="bike"
-        />
-      </div>
-
-      <div style={{ display: 'flex', gap: '0.5rem' }}>
-        <ActionButton type="button" onClick={handleRestorePhoto}>Restore Original Photo</ActionButton>
-        <ActionButton type="button" onClick={handleDeletePhoto}>Delete Photo</ActionButton>
-      </div>
+      <ImageWithFallback src={form.featured_photo} alt="Featured photo" imageType="bike" />
 
       <input type="file" accept="image/*" onChange={handlePhotoChange} ref={fileInputRef} />
 
-      <ActionButton type="submit" loading={isPending}>Save</ActionButton>
+      <ActionButton type="button" onClick={handleDeletePhoto}>Delete Photo</ActionButton>
+
+      <ActionButton type="submit" loading={isPending}>Update</ActionButton>
+
+      {showCropper && photoFile && (
+        <ImageCropModal
+          file={photoFile}
+          onClose={() => setShowCropper(false)}
+          onUploadSuccess={(url) => {
+            setForm(prev => ({ ...prev, featured_photo: url }));
+            setPhotoFile(null);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+          }}
+          currentPhotoUrl={form.featured_photo}
+        />
+      )}
     </form>
   );
 }

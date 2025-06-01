@@ -3,6 +3,9 @@
 import { useEffect, useState, useTransition } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast';
+import { confirmAlert } from 'react-confirm-alert';
+import 'react-confirm-alert/src/react-confirm-alert.css';
 
 import ImageWithFallback from '@/app/components/ImageWithFallback';
 import FollowButton from '@/app/components/FollowButton';
@@ -11,16 +14,14 @@ import { unfollowPost } from '@/app/actions/posts';
 
 import type { UserRow, PostSummary, Comment } from '@/app/lib/definitions';
 
-type FullUserData = UserRow & {
-  posts: PostSummary[];
-  comments: Comment[];
-  followed_posts: PostSummary[];
-};
-
 export default function UserPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const [userData, setUserData] = useState<FullUserData | null>(null);
+  const [userData, setUserData] = useState<(UserRow & {
+    posts: PostSummary[];
+    comments: Comment[];
+    followed_posts: PostSummary[];
+  }) | null>(null);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -41,7 +42,6 @@ export default function UserPage() {
       fetch(`/api/user?${query}`)
         .then((res) => res.json())
         .then((data) => {
-          console.log('✅ Loaded user data:', data);
           setUserData(data);
         })
         .catch((err) => {
@@ -71,29 +71,57 @@ export default function UserPage() {
               }
             : prev
         );
+        toast.success('Post unfollowed');
       } catch (err) {
         console.error('❌ Failed to unfollow post', err);
+        toast.error('Failed to unfollow post');
       }
     });
   };
 
-  let createdDisplay = 'Unknown';
-  try {
-    const parsed = new Date(userData!.created_at);
-    if (!isNaN(parsed.getTime())) {
-      createdDisplay = parsed.toLocaleString('en-US', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      });
-    }
-  } catch (err) {
-    console.warn('⚠️ Invalid created_at:', err);
-  }
+  const handleDeletePost = (postId: number) => {
+    confirmAlert({
+      title: 'Confirm Deletion',
+      message: 'Are you sure you want to delete this post?',
+      buttons: [
+        {
+          label: 'Yes',
+          onClick: () => {
+            startTransition(async () => {
+              try {
+                const res = await fetch(`/api/user/posts/delete/${postId}`, {
+                  method: 'DELETE',
+                });
+
+                if (!res.ok) throw new Error('Failed to delete post');
+
+                setUserData((prev) =>
+                  prev ? { ...prev, posts: prev.posts.filter((p) => p.id !== postId) } : prev
+                );
+                toast.success('Post deleted');
+              } catch (err) {
+                console.error('❌ Failed to delete post', err);
+                toast.error('Failed to delete post');
+              }
+            });
+          },
+        },
+        {
+          label: 'No',
+        },
+      ],
+    });
+  };
+
+  const createdDisplay = new Date(userData!.created_at).toLocaleString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
 
   return (
     <div className="user-dashboard">
@@ -120,24 +148,33 @@ export default function UserPage() {
         <p><strong>Created:</strong> {createdDisplay}</p>
 
         <div className="actions">
-          <ActionButton onClick={() => router.push('/user/edit')} title="Update Profile">✏️ Update Profile</ActionButton>
-          <ActionButton onClick={() => router.push('/user/delete')} title="Delete Account">🗑 Delete Account</ActionButton>
+          <ActionButton onClick={() => router.push('/user/update')}>✏️ Update Profile</ActionButton>
+          <ActionButton onClick={() => router.push('/user/delete')}>🗑 Delete Account</ActionButton>
         </div>
       </section>
 
       <section>
         <h2>📝 My Posts</h2>
-        <ActionButton onClick={() => router.push('/blog/new')} title="New Post">➕ New Post</ActionButton>
+        <ActionButton onClick={() => router.push('/blog/create')}>➕ Create Post</ActionButton>
         {userData!.posts?.length === 0 ? (
           <p>You haven’t written any posts yet.</p>
         ) : (
-          <ul>
+          <ul className="user-post-list">
             {userData!.posts.map((post) => (
-              <li key={post.id}>
-                <strong>{post.title}</strong> — {new Date(post.created_at).toLocaleDateString()} ({post.category})
+              <li key={post.id} className="user-post-item">
+                <ImageWithFallback
+                  src={post.featured_photo || '/uploads/posts/default.jpg'}
+                  alt={post.title}
+                  className="post-thumbnail"
+                  imageType="bike"
+                />
                 <div>
-                  <ActionButton onClick={() => router.push(`/blog/${post.slug}`)}>View</ActionButton>
-                  <ActionButton onClick={() => router.push(`/blog/${post.id}/edit`)}>Edit</ActionButton>
+                  <strong>{post.title}</strong> — {new Date(post.created_at).toLocaleDateString()} ({post.category})
+                  <div>
+                    <ActionButton onClick={() => router.push(`/blog/${post.slug}`)}>View</ActionButton>
+                    <ActionButton onClick={() => router.push(`/blog/edit/${post.slug}`)}>Edit</ActionButton>
+                    <ActionButton onClick={() => handleDeletePost(post.id)}>Delete</ActionButton>
+                  </div>
                 </div>
               </li>
             ))}

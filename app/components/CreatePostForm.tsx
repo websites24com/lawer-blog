@@ -1,62 +1,37 @@
 'use client';
 
-import { useEffect, useState, useTransition, useRef } from 'react';
+import { useState, useRef, useTransition, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import ActionButton from '@/app/components/ActionButton';
 import ImageWithFallback from '@/app/components/ImageWithFallback';
 import RichTextEditor from '@/app/components/RichTextEditor';
+import ImageCropModal from '@/app/components/ImageCropModal';
 
 let previewWindow: Window | null = null;
 
-export default function EditPostPage({ params }: { params: { id: string } }) {
+interface CreatePostFormProps {
+  categories: { id: number; name: string }[];
+}
+
+export default function CreatePostForm({ categories }: CreatePostFormProps) {
   const [form, setForm] = useState({
     title: '',
     excerpt: '',
     content: '',
-    category_id: '1',
+    category_id: categories[0]?.id.toString() || '1',
     featured_photo: '/uploads/posts/default.jpg',
   });
+
   const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [categories, setCategories] = useState<{ id: number; name: string }[]>([]);
   const [isPending, startTransition] = useTransition();
+  const [showCropper, setShowCropper] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const router = useRouter();
+
   const [excerptCount, setExcerptCount] = useState(0);
   const [titleCount, setTitleCount] = useState(0);
   const [contentCount, setContentCount] = useState(0);
   const [isPreviewReady, setIsPreviewReady] = useState(false);
-
-  useEffect(() => {
-    async function fetchPostAndCategories() {
-      try {
-        const [postRes, categoryRes] = await Promise.all([
-          fetch(`/api/user/posts/${params.id}`),
-          fetch('/api/categories')
-        ]);
-
-        if (!postRes.ok || !categoryRes.ok) throw new Error('Failed to load post or categories');
-
-        const postData = await postRes.json();
-        const categoriesData = await categoryRes.json();
-
-        setForm({
-          title: postData.title || '',
-          excerpt: postData.excerpt || '',
-          content: postData.content || '',
-          category_id: postData.category_id.toString() || '1',
-          featured_photo: postData.featured_photo || '/uploads/posts/default.jpg',
-        });
-        setTitleCount(postData.title?.length || 0);
-        setExcerptCount(postData.excerpt?.length || 0);
-        setContentCount(postData.content?.length || 0);
-        setCategories(categoriesData);
-      } catch (err) {
-        console.error('❌ Failed to load post for editing:', err);
-      }
-    }
-
-    fetchPostAndCategories();
-  }, [params.id]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -73,28 +48,11 @@ export default function EditPostPage({ params }: { params: { id: string } }) {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setPhotoFile(file);
-
-      const localUrl = URL.createObjectURL(file);
-      setForm(prev => {
-        const updated = { ...prev, featured_photo: localUrl };
-        sendPreviewData(updated);
-        return updated;
-      });
+      setShowCropper(true);
     }
   };
 
   const handleDeletePhoto = () => {
-    const defaultPhoto = '/uploads/posts/default.jpg';
-    setForm(prev => {
-      const updated = { ...prev, featured_photo: defaultPhoto };
-      sendPreviewData(updated);
-      return updated;
-    });
-    setPhotoFile(null);
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  };
-
-  const handleRestorePhoto = () => {
     setForm(prev => {
       const updated = { ...prev, featured_photo: '/uploads/posts/default.jpg' };
       sendPreviewData(updated);
@@ -113,7 +71,7 @@ export default function EditPostPage({ params }: { params: { id: string } }) {
     setContentCount(value.length);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
     startTransition(async () => {
@@ -123,19 +81,21 @@ export default function EditPostPage({ params }: { params: { id: string } }) {
         formData.append('excerpt', form.excerpt);
         formData.append('content', form.content);
         formData.append('category_id', form.category_id);
-        if (photoFile) formData.append('featured_photo', photoFile);
+        formData.append('featured_photo_url', form.featured_photo);
 
-        const res = await fetch(`/api/user/posts/edit/${params.id}`, {
+        const res = await fetch('/api/user/posts/create', {
           method: 'POST',
           body: formData,
         });
 
-        if (!res.ok) throw new Error('Post update failed');
+        const data = await res.json();
+        console.log('📦 CreatePost response:', data);
 
+        if (!res.ok) throw new Error(data.error || 'Unknown error');
         router.refresh();
         router.push('/user');
       } catch (err) {
-        console.error('Update failed', err);
+        console.error('🛑 CreatePost error:', err);
       }
     });
   };
@@ -147,10 +107,14 @@ export default function EditPostPage({ params }: { params: { id: string } }) {
           type: 'preview-data',
           payload: {
             ...(customForm || form),
-            user: { first_name: 'User', last_name: 'Preview', avatar_url: '/uploads/avatars/default.jpg' },
+            user: {
+              first_name: 'User',
+              last_name: 'Preview',
+              avatar_url: '/uploads/avatars/default.jpg',
+            },
             comments: [],
             followed_by_current_user: false,
-            id: Number(params.id),
+            id: 0,
             slug: 'live-preview',
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
@@ -184,16 +148,32 @@ export default function EditPostPage({ params }: { params: { id: string } }) {
     if (isPreviewReady) {
       sendPreviewData();
     }
-  }, [isPreviewReady]);
+  }, [form, isPreviewReady]);
 
   return (
     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
       <label htmlFor="title">Title:</label>
-      <input id="title" name="title" value={form.title} onChange={handleChange} placeholder="SEO-friendly title (max 70 characters)" maxLength={70} required />
+      <input
+        id="title"
+        name="title"
+        value={form.title}
+        onChange={handleChange}
+        placeholder="SEO-friendly title (max 70 characters)"
+        maxLength={70}
+        required
+      />
       <small style={{ alignSelf: 'flex-end' }}>{titleCount}/70</small>
 
       <label htmlFor="excerpt">Excerpt:</label>
-      <textarea id="excerpt" name="excerpt" value={form.excerpt} onChange={handleChange} placeholder="Brief excerpt (max 300 characters)" maxLength={300} required />
+      <textarea
+        id="excerpt"
+        name="excerpt"
+        value={form.excerpt}
+        onChange={handleChange}
+        placeholder="Brief excerpt (max 300 characters)"
+        maxLength={300}
+        required
+      />
       <small style={{ alignSelf: 'flex-end' }}>{excerptCount}/300</small>
 
       <label htmlFor="content">Content:</label>
@@ -204,7 +184,7 @@ export default function EditPostPage({ params }: { params: { id: string } }) {
 
       <label>Category:</label>
       <select name="category_id" value={form.category_id} onChange={handleChange}>
-        {categories.map(cat => (
+        {categories.map((cat) => (
           <option key={cat.id} value={cat.id}>{cat.name}</option>
         ))}
       </select>
@@ -212,20 +192,36 @@ export default function EditPostPage({ params }: { params: { id: string } }) {
       <label>Current Photo:</label>
       <div className="image-wrapper">
         <ImageWithFallback
-          src={photoFile ? URL.createObjectURL(photoFile) : form.featured_photo}
+          key={form.featured_photo}
+          src={form.featured_photo || '/uploads/posts/default.jpg'}
           alt="Post photo preview"
           imageType="bike"
         />
       </div>
 
       <div style={{ display: 'flex', gap: '0.5rem' }}>
-        <ActionButton type="button" onClick={handleRestorePhoto}>Restore Default Photo</ActionButton>
         <ActionButton type="button" onClick={handleDeletePhoto}>Delete Photo</ActionButton>
       </div>
 
       <input type="file" accept="image/*" onChange={handlePhotoChange} ref={fileInputRef} />
 
-      <ActionButton type="submit" loading={isPending}>Update Post</ActionButton>
+      <ActionButton type="submit" loading={isPending}>Create Post</ActionButton>
+
+      {showCropper && photoFile && (
+        <ImageCropModal
+          file={photoFile}
+          onClose={() => setShowCropper(false)}
+          onUploadSuccess={(url) => {
+            setForm(prev => {
+              const updated = { ...prev, featured_photo: url };
+              sendPreviewData(updated);
+              return updated;
+            });
+            setPhotoFile(null);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+          }}
+        />
+      )}
     </form>
   );
 }
