@@ -180,7 +180,7 @@ export default function CreatePostForm({ categories }: CreatePostFormProps) {
       <RichTextEditor value={form.content} onChange={handleContentChange} />
       <small style={{ alignSelf: 'flex-end' }}>{contentCount}/10000</small>
 
-      <ActionButton type="button" onClick={openLivePreview}>Live Preview</ActionButton>
+     
 
       <label>Category:</label>
       <select name="category_id" value={form.category_id} onChange={handleChange}>
@@ -204,6 +204,7 @@ export default function CreatePostForm({ categories }: CreatePostFormProps) {
       </div>
 
       <input type="file" accept="image/*" onChange={handlePhotoChange} ref={fileInputRef} />
+      
 
       <ActionButton type="submit" loading={isPending}>Create Post</ActionButton>
 

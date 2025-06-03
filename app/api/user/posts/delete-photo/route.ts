@@ -3,6 +3,7 @@ import { auth } from '@/app/lib/auth';
 import path from 'path';
 import fs from 'fs/promises';
 
+// ✅ POST handler to delete removed TipTap images (specific for EditPostForm)
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user) {
@@ -10,31 +11,43 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { photoPath } = await req.json();
+    const { oldContent, newContent } = await req.json();
 
-    if (!photoPath.startsWith('/uploads/posts/')) {
-      return NextResponse.json({ error: 'Invalid path' }, { status: 400 });
-    }
+    // ✅ Extract image URLs from HTML content
+    const extractImageUrls = (html: string): Set<string> => {
+      const regex = /<img[^>]+src="([^">]+)"/g;
+      const urls = new Set<string>();
+      let match;
+      while ((match = regex.exec(html))) {
+        const src = match[1];
+        if (src.startsWith('/uploads/posts/')) {
+          urls.add(src);
+        }
+      }
+      return urls;
+    };
 
-    // ✅ Construct absolute path correctly
-    const filePath = path.join(process.cwd(), 'public', photoPath);
+    // ✅ Compare image URLs from old and new content
+    const oldImages = extractImageUrls(oldContent);
+    const newImages = extractImageUrls(newContent);
 
-    // ✅ Check if file exists before trying to delete it
-    try {
-      await fs.unlink(filePath);
-    } catch (err: any) {
-      if (err.code === 'ENOENT') {
-        console.warn('⚠️ Tried to delete non-existing file:', filePath);
-        // Still return success to allow fallback to proceed
-        return NextResponse.json({ message: 'Photo already deleted' });
-      } else {
-        throw err;
+    // ✅ Determine which images have been removed
+    const imagesToDelete = [...oldImages].filter((url) => !newImages.has(url));
+
+    // ✅ Delete removed images from disk
+    for (const url of imagesToDelete) {
+      const filePath = path.join(process.cwd(), 'public', url);
+      try {
+        await fs.unlink(filePath);
+        console.log(`🗑️ Deleted unused editor image: ${url}`);
+      } catch (err) {
+        console.warn(`⚠️ Could not delete: ${url}`, err);
       }
     }
 
-    return NextResponse.json({ message: 'Photo deleted' });
+    return NextResponse.json({ deleted: imagesToDelete });
   } catch (err) {
-    console.error('❌ Failed to delete photo:', err);
-    return NextResponse.json({ error: 'Failed to delete photo' }, { status: 500 });
+    console.error('❌ Cleanup failed:', err);
+    return NextResponse.json({ error: 'Failed to cleanup images' }, { status: 500 });
   }
 }

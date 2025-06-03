@@ -21,13 +21,14 @@ import { useEffect, useRef, useState } from 'react';
 import ImageCropModal from '@/app/components/ImageCropModal';
 import ImageMetaModal from '@/app/components/ImageMetaModal';
 
-export default function RichTextEditor({
-  value,
-  onChange,
-}: {
+type Props = {
   value: string;
   onChange: (value: string) => void;
-}) {
+  // ✅ Optional tracking for TipTap image uploads
+  onImageUpload?: (url: string) => void;
+};
+
+export default function RichTextEditor({ value, onChange, onImageUpload }: Props) {
   const [isEditorReady, setIsEditorReady] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
@@ -109,6 +110,11 @@ export default function RichTextEditor({
   const handleCroppedImageUpload = (url: string) => {
     setPendingCroppedUrl(url);
     setShowMetaModal(true);
+
+    // ✅ Track uploaded image (used in EditPostForm)
+    if (onImageUpload) {
+      onImageUpload(url);
+    }
   };
 
   const handleInsertWithMeta = (alt: string, title: string) => {
