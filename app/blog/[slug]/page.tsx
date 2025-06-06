@@ -1,59 +1,108 @@
-import Link from 'next/link';
-import { getAllApprovedPosts } from '@/app/lib/posts';
-import type { PostSummary } from '@/app/lib/definitions';
-import FollowButton from '@/app/components/FollowButton';
+import { getPostBySlug } from '@/app/lib/posts';
+import { auth } from '@/app/lib/auth';
 import ImageWithFallback from '@/app/components/ImageWithFallback';
+import FollowButton from '@/app/components/FollowButton';
+import AuthorInfo from '@/app/components/AuthorInfo';
+import type { Metadata } from 'next';
 
-function stripHtml(html: string): string {
-  return html.replace(/<[^>]*>?/gm, '');
+type PageProps = {
+  params: {
+    slug: string;
+  };
+};
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const session = await auth();
+  const userId = session?.user?.id || null;
+  const post = await getPostBySlug(params.slug, userId);
+
+  return {
+    title: post?.title || 'Post Not Found',
+    description: post?.excerpt || '',
+  };
 }
 
-export default async function BlogPage() {
-  const posts: PostSummary[] = await getAllApprovedPosts();
+export default async function BlogPostPage({ params }: PageProps) {
+  const session = await auth();
+  const userId = session?.user?.id || null;
+  const post = await getPostBySlug(params.slug, userId);
+
+  if (!post) return <div><h1>404 - Post Not Found</h1></div>;
 
   return (
-    <main>
-      <h1>Blog</h1>
+    <main style={{ padding: '2rem', maxWidth: '900px', margin: '0 auto' }}>
+      {/* Post Title */}
+      <h1>{post.title}</h1>
 
-      {posts.length === 0 && <p>No posts found.</p>}
+      {/* Author Info */}
+      <AuthorInfo
+        user_id={post.user_id}
+        user_slug={post.user.slug} // ✅ Fix: added user_slug for correct URL
+        first_name={post.user.first_name}
+        last_name={post.user.last_name}
+        avatar_url={post.user.avatar_url}
+        created_at={post.created_at}
+        category={post.category}
+      />
 
-      <ul>
-        {posts.map((post) => (
-          <li key={post.id}>
-            <Link href={`/blog/${post.slug}`}>
-               <div style={{ borderBottom: '1px solid #ccc', padding: '1rem 0' }}>
-                    {post.featured_photo && (
-                      <div style={{ width: '100%', maxWidth: '400px', height: '200px', position: 'relative', marginTop: '1rem' }}>
-                        <ImageWithFallback
-                          src={post.featured_photo}
-                          alt="Featured Post"
-                          imageType="bike"
-                          className=""
-                          wrapperClassName=""
-                        />
-                      </div>
-                    )}
-                    </div>
-            </Link>
+      {/* Follow Button */}
+      <FollowButton
+        postId={post.id}
+        initiallyFollowing={post.followed_by_current_user}
+      />
 
-            <Link href={`/blog/${post.slug}`}>
-              <h2>{post.title}</h2>
-            </Link>
+      {/* Featured Image */}
+      {post.featured_photo && (
+        <div style={{ maxWidth: '100%', margin: '2rem 0' }}>
+          <ImageWithFallback
+            src={post.featured_photo}
+            alt={post.photo_alt || 'Featured Image'}
+            title={post.photo_title || ''}
+            imageType="bike"
+            className=""
+            wrapperClassName=""
+          />
+        </div>
+      )}
 
-            <p>
-              {new Date(post.created_at).toLocaleDateString()} • {post.category} •{' '}
-              {post.user.first_name} {post.user.last_name}
-            </p>
+      {/* Post Excerpt */}
+      <p style={{ fontStyle: 'italic', color: '#444' }}>{post.excerpt}</p>
 
-            <FollowButton
-              postId={post.id}
-              initiallyFollowing={post.followed_by_current_user}
-            />
+      {/* Post Content */}
+      <article
+        dangerouslySetInnerHTML={{ __html: post.content }}
+        style={{ lineHeight: '1.7', marginTop: '2rem' }}
+      />
 
-            <p>{stripHtml(post.excerpt)}...</p>
-          </li>
-        ))}
-      </ul>
+      {/* Comments Section */}
+      <section style={{ marginTop: '3rem' }}>
+        <h2>Comments ({post.comments?.length || 0})</h2>
+
+        {post.comments?.length === 0 ? (
+          <p>No comments yet.</p>
+        ) : (
+          <ul style={{ listStyle: 'none', padding: 0 }}>
+            {post.comments.map((comment) => (
+              <li
+                key={comment.id}
+                style={{
+                  marginBottom: '1.5rem',
+                  borderBottom: '1px solid #ddd',
+                  paddingBottom: '1rem',
+                }}
+              >
+                <p>
+                  <strong>{comment.name}</strong> –{' '}
+                  <span style={{ color: '#666' }}>
+                    {new Date(comment.created_at).toLocaleDateString()}
+                  </span>
+                </p>
+                <p style={{ whiteSpace: 'pre-wrap' }}>{comment.content}</p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </main>
   );
 }

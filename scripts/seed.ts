@@ -20,16 +20,29 @@ async function seed() {
       id INT PRIMARY KEY AUTO_INCREMENT,
       first_name VARCHAR(100) NOT NULL,
       last_name VARCHAR(100) NOT NULL,
+      slug VARCHAR(255) UNIQUE,
       email VARCHAR(255),
       password VARCHAR(255),
       phone VARCHAR(50),
-      chat_app ENUM('WhatsApp', 'Telegram', 'Signal', 'Messenger', 'None') DEFAULT 'None',
+      chat_app ENUM('WhatsApp', 'Telegram', 'Signal', 'None') DEFAULT 'None',
       avatar_url TEXT,
+      avatar_alt TEXT,
+      avatar_title TEXT,
       role ENUM('USER', 'MODERATOR', 'ADMIN') DEFAULT 'USER',
       status ENUM('pending', 'approved', 'declined', 'frozen') DEFAULT 'approved',
       provider VARCHAR(50),
       provider_account_id VARCHAR(255),
+      website VARCHAR(255),
+      about_me TEXT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE user_followers (
+      follower_id INT NOT NULL,
+      followed_id INT NOT NULL,
+      PRIMARY KEY (follower_id, followed_id),
+      FOREIGN KEY (follower_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (followed_id) REFERENCES users(id) ON DELETE CASCADE
     );
 
     CREATE TABLE categories (
@@ -45,6 +58,8 @@ async function seed() {
       excerpt TEXT NOT NULL,
       content TEXT NOT NULL,
       featured_photo VARCHAR(255),
+      photo_alt TEXT,
+      photo_title TEXT,
       status ENUM('pending', 'approved', 'draft', 'declined') DEFAULT 'pending',
       user_id INT,
       category_id INT,
@@ -78,7 +93,7 @@ async function seed() {
   const categories = [
     ['Property Law', 'property-law'],
     ['Civil Rights', 'civil-rights'],
-    ['Business Law', 'business-law']
+    ['Business Law', 'business-law'],
   ];
 
   for (const [name, slug] of categories) {
@@ -88,25 +103,54 @@ async function seed() {
   const hashedPassword = await bcrypt.hash('secret123', 10);
   const userIds = [];
 
+  // Helper to generate unique slug
+ // Fix begins here ↓
+async function generateUniqueSlug(baseSlug: string): Promise<string> {
+  let slug = baseSlug;
+  let suffix = 1;
+
+  while (true) {
+    const [rows] = await connection.query('SELECT COUNT(*) as count FROM users WHERE slug = ?', [slug]);
+    if ((rows as any)[0].count === 0) break;
+    slug = `${baseSlug}-${suffix++}`;
+  }
+
+  return slug;
+}
+
   for (let i = 0; i < 20; i++) {
-    const email = faker.internet.email();
-    console.log(`✅ User created: ${email} → password: secret123`);
+    const first_name = faker.person.firstName();
+    const last_name = faker.person.lastName();
+    const email = faker.internet.email({ firstName: first_name, lastName: last_name });
+    const baseSlug = slugify(`${first_name} ${last_name}`, { lower: true, strict: true });
+    const uniqueSlug = await generateUniqueSlug(baseSlug);
+
+    console.log(`✅ User created: ${email} → password: secret123 → slug: ${uniqueSlug}`);
 
     const [result] = await connection.query(
-      `INSERT INTO users (first_name, last_name, email, password, phone, chat_app, avatar_url, role, status, provider, provider_account_id) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO users (
+        first_name, last_name, slug, email, password, phone, chat_app,
+        avatar_url, avatar_alt, avatar_title,
+        role, status, provider, provider_account_id,
+        website, about_me
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        faker.person.firstName(),
-        faker.person.lastName(),
+        first_name,
+        last_name,
+        uniqueSlug,
         email,
         hashedPassword,
         faker.phone.number('+52-###-###-####'),
-        faker.helpers.arrayElement(['WhatsApp', 'Telegram', 'Signal', 'Messenger', 'None']),
+        faker.helpers.arrayElement(['WhatsApp', 'Telegram', 'Signal', 'None']),
         `/uploads/avatars/${faker.system.fileName()}`,
+        faker.lorem.words(5),
+        faker.person.jobTitle(),
         faker.helpers.arrayElement(['USER', 'MODERATOR', 'ADMIN']),
         faker.helpers.arrayElement(['approved', 'pending', 'declined', 'frozen']),
         'credentials',
-        faker.string.uuid()
+        faker.string.uuid(),
+        faker.internet.url(),
+        faker.lorem.sentences(2),
       ]
     );
 
@@ -123,10 +167,23 @@ async function seed() {
     const user_id = faker.helpers.arrayElement(userIds);
     const category_id = faker.number.int({ min: 1, max: 3 });
     const featured_photo = `/uploads/posts/${faker.system.fileName()}`;
+    const photo_alt = faker.lorem.words(5);
+    const photo_title = faker.company.name();
 
     const [result] = await connection.query(
-      'INSERT INTO posts (slug, title, excerpt, content, featured_photo, status, user_id, category_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [slug, title, excerpt, content, featured_photo, 'pending', user_id, category_id]
+      'INSERT INTO posts (slug, title, excerpt, content, featured_photo, photo_alt, photo_title, status, user_id, category_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [
+        slug,
+        title,
+        excerpt,
+        content,
+        featured_photo,
+        photo_alt,
+        photo_title,
+        'pending',
+        user_id,
+        category_id,
+      ]
     );
 
     postIds.push(result.insertId);
@@ -142,7 +199,7 @@ async function seed() {
         user_id,
         faker.person.fullName(),
         faker.internet.email(),
-        faker.lorem.sentences(2)
+        faker.lorem.sentences(2),
       ]
     );
   }
@@ -150,9 +207,14 @@ async function seed() {
   for (const user_id of userIds) {
     const followed = faker.helpers.arrayElements(postIds, 3);
     for (const post_id of followed) {
+      await connection.query('INSERT IGNORE INTO followed_posts (user_id, post_id) VALUES (?, ?)', [user_id, post_id]);
+    }
+
+    const followedUsers = faker.helpers.arrayElements(userIds.filter((id) => id !== user_id), 3);
+    for (const followed_id of followedUsers) {
       await connection.query(
-        'INSERT IGNORE INTO followed_posts (user_id, post_id) VALUES (?, ?)',
-        [user_id, post_id]
+        'INSERT IGNORE INTO user_followers (follower_id, followed_id) VALUES (?, ?)',
+        [user_id, followed_id]
       );
     }
   }

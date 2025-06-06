@@ -3,6 +3,7 @@ import { getAllApprovedPosts } from '@/app/lib/posts';
 import type { PostSummary } from '@/app/lib/definitions';
 import FollowButton from '@/app/components/FollowButton';
 import ImageWithFallback from '@/app/components/ImageWithFallback';
+import FancyDate from '@/app/components/FancyDate'; // ✅ Adjust path based on your folder structure
 
 function stripHtml(html: string): string {
   return html.replace(/<[^>]*>?/gm, '');
@@ -21,19 +22,27 @@ export default async function BlogPage() {
         {posts.map((post) => (
           <li key={post.id}>
             <Link href={`/blog/${post.slug}`}>
-               <div style={{ borderBottom: '1px solid #ccc', padding: '1rem 0' }}>
-                    {post.featured_photo && (
-                      <div style={{ width: '100%', maxWidth: '400px', height: '200px', position: 'relative', marginTop: '1rem' }}>
-                        <ImageWithFallback
-                          src={post.featured_photo}
-                          alt="Featured Post"
-                          imageType="bike"
-                          className=""
-                          wrapperClassName=""
-                        />
-                      </div>
-                    )}
-                    </div>
+              <div style={{ borderBottom: '1px solid #ccc', padding: '1rem 0' }}>
+                {post.featured_photo && (
+                  <div
+                    style={{
+                      width: '100%',
+                      maxWidth: '400px',
+                      height: '200px',
+                      position: 'relative',
+                      marginTop: '1rem',
+                    }}
+                  >
+                    <ImageWithFallback
+                      src={post.featured_photo}
+                      alt="Featured Post"
+                      imageType="bike"
+                      className=""
+                      wrapperClassName=""
+                    />
+                  </div>
+                )}
+              </div>
             </Link>
 
             <Link href={`/blog/${post.slug}`}>
@@ -41,7 +50,7 @@ export default async function BlogPage() {
             </Link>
 
             <p>
-              {new Date(post.created_at).toLocaleDateString()} • {post.category} •{' '}
+              <FancyDate dateString={post.created_at} /> • {post.category} •{' '}
               {post.user.first_name} {post.user.last_name}
             </p>
 

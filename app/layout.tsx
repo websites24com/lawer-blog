@@ -7,8 +7,8 @@ import Header from '@/app/components/Header'; // 👈 import your header
 
 export const metadata: Metadata = {
   title: {
-    default: 'BikeApp',
-    template: '%s | BikeApp',
+    default: 'Lawyers blog',
+    template: '%s | Lawyers blog',
   },
 };
 

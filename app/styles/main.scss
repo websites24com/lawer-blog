@@ -14,6 +14,8 @@
 @use 'base/themes';
 @use 'base/theme';
 
+
+
 // ========================
 // 📐 Layouts
 // ========================
@@ -23,13 +25,12 @@
 // 🧩 Components
 // ========================
 @use 'components/header';
-@use 'components/bike-card';
-@use 'components/bike-cardphoto';
-@use 'components/bike-carousel';
-@use 'components/fallback-image';
+@use 'components/phone';
 @use 'components/button';
 @use 'components/form';
 @use 'components/richtexteditor';
+@use 'components/fallback-image';
+
 
 // ========================
 // 📄 Pages
@@ -37,7 +38,8 @@
 @use 'pages/login';
 @use 'pages/logout';
 @use 'pages/user';
-@use 'pages/bikes';
-@use 'pages/simplebike';
-@use 'pages/detailbike';
-@use 'pages/ads';
+
+// ========================
+// 📄 Utils
+// ========================
+@use 'utils/spinner';

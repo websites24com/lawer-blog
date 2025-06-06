@@ -12,9 +12,9 @@ import AvatarCropModal from '@/app/components/AvatarCropModal';
 import AvatarMetaModal from '@/app/components/AvatarMetaModal';
 import Spinner from '@/app/components/Spinner';
 
-import { MessageCircle, Smartphone, Send, PhoneCall, Trash2 } from 'lucide-react';
+import { MessageCircle, Smartphone, Send, Trash2 } from 'lucide-react';
 
-export default function EditUserPage() {
+export default function EditUserForm({ userId }: { userId: number }) {
   const { data: session, status } = useSession();
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -25,7 +25,7 @@ export default function EditUserPage() {
     last_name: '',
     email: '',
     phone: '',
-    chat_app: '',
+    chat_app: 'None',
     website: '',
     about_me: '',
     avatar_url: '',
@@ -40,23 +40,9 @@ export default function EditUserPage() {
   const [loading, setLoading] = useState(true);
   const [countdown, setCountdown] = useState(5);
 
-  // Redirect if unauthenticated
-  useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/login');
-    }
-  }, [status, router]);
-
-  // Load user info
   useEffect(() => {
     if (status === 'authenticated' && session?.user?.email) {
-      const query = session.user.email
-        ? `email=${encodeURIComponent(session.user.email)}`
-        : session.user.id
-        ? `providerId=${encodeURIComponent(session.user.id)}`
-        : '';
-
-      fetch(`/api/user?${query}`)
+      fetch(`/api/user?email=${session.user.email}`)
         .then((res) => res.json())
         .then((data) => {
           setForm({
@@ -64,13 +50,14 @@ export default function EditUserPage() {
             last_name: data.last_name || '',
             email: data.email || '',
             phone: data.phone || '',
-            chat_app: data.chat_app || '',
+            chat_app: data.chat_app || 'None',
             website: data.website || '',
             about_me: data.about_me || '',
             avatar_url: data.avatar_url || '',
             avatar_alt: data.avatar_alt || '',
             avatar_title: data.avatar_title || '',
           });
+          console.log('📥 Loaded phone:', data.phone);
           setPreviewUrl(data.avatar_url || '');
           setLoading(false);
         })
@@ -79,16 +66,16 @@ export default function EditUserPage() {
           setLoading(false);
         });
     }
-  }, [status, session]);
+  }, [status, session?.user?.email]);
 
-  // Countdown redirect
   useEffect(() => {
+    let timer: NodeJS.Timeout;
     if (countdown > 0 && countdown < 5) {
-      const timer = setTimeout(() => setCountdown((c) => c - 1), 1000);
-      return () => clearTimeout(timer);
+      timer = setTimeout(() => setCountdown((c) => c - 1), 1000);
     } else if (countdown === 0) {
       router.push('/user');
     }
+    return () => clearTimeout(timer);
   }, [countdown, router]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -97,6 +84,7 @@ export default function EditUserPage() {
   };
 
   const handlePhoneChange = (value: string) => {
+    console.log('📞 handlePhoneChange value:', value);
     setForm((prev) => ({ ...prev, phone: value }));
   };
 
@@ -104,29 +92,37 @@ export default function EditUserPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     setPhotoFile(file);
-    setShowCropper(true); // Only cropper should show first
+    setShowCropper(true);
   };
 
   const handleDeleteAvatar = async () => {
     try {
       const res = await fetch('/api/avatar/delete', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: form.avatar_url }),
+        headers: { 'Content-Type': 'application/json' },
       });
       if (!res.ok) throw new Error();
 
       const updateRes = await fetch('/api/user/edit', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...form,
-          id: session.user.id,
-          avatar_url: '/uploads/avatars/default.jpg',
-          avatar_alt: '',
-          avatar_title: '',
-        }),
+        body: (() => {
+          const body = new FormData();
+          body.append('id', userId.toString());
+          body.append('first_name', form.first_name);
+          body.append('last_name', form.last_name);
+          body.append('email', form.email);
+          body.append('phone', '');
+          body.append('chat_app', form.chat_app);
+          body.append('website', form.website);
+          body.append('about_me', form.about_me);
+          body.append('avatar_url', '/uploads/avatars/default.jpg');
+          body.append('avatar_alt', '');
+          body.append('avatar_title', '');
+          return body;
+        })(),
       });
+
       if (!updateRes.ok) throw new Error();
 
       setForm((prev) => ({
@@ -134,24 +130,34 @@ export default function EditUserPage() {
         avatar_url: '/uploads/avatars/default.jpg',
         avatar_alt: '',
         avatar_title: '',
+        phone: '', // optional clear on delete
       }));
       setPreviewUrl('/uploads/avatars/default.jpg');
       if (fileInputRef.current) fileInputRef.current.value = '';
       toast.success('Avatar deleted');
-    } catch {
+    } catch (err) {
       toast.error('Failed to delete avatar');
+      console.error(err);
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    console.log('🚀 handleSubmit started');
+    console.log('📞 form.phone (before submit):', form.phone);
+    console.log('📦 Sending form:', form);
+
     startTransition(async () => {
       try {
         const body = new FormData();
-        body.append('id', session.user.id);
+        body.append('id', userId.toString());
+
         Object.entries(form).forEach(([key, val]) => {
-          if (val !== undefined && val !== null) {
+          if (typeof val === 'string') {
             body.append(key, val);
+          } else if (val === null || val === undefined) {
+            body.append(key, '');
           }
         });
 
@@ -160,13 +166,19 @@ export default function EditUserPage() {
           body,
         });
 
-        if (!res.ok) throw new Error();
+        if (!res.ok) {
+          const text = await res.text();
+          console.error('❌ Response text:', text);
+          throw new Error('❌ Failed to save user');
+        }
+
         await fetch('/api/avatar/cleanup-unused', { method: 'POST' });
 
         toast.success('Profile updated — redirecting in 5s...');
         setCountdown(4);
-      } catch {
+      } catch (err) {
         toast.error('Failed to update profile');
+        console.error(err);
       }
     });
   };
@@ -190,7 +202,7 @@ export default function EditUserPage() {
           />
         </div>
         {previewUrl && (
-          <button type="button" className="delete-avatar-button" onClick={handleDeleteAvatar}>
+          <button type="button" className="delete-avatar-button" onClick={handleDeleteAvatar} title="Delete avatar">
             <Trash2 size={16} /> Remove
           </button>
         )}
@@ -207,55 +219,44 @@ export default function EditUserPage() {
 
       <label htmlFor="chat_app">Chat App</label>
       <div className="chat-app-wrapper">
-        <select name="chat_app" value={form.chat_app} onChange={handleChange} required>
-          <option value="">Select chat app</option>
+        <select name="chat_app" value={form.chat_app} onChange={handleChange}>
+          <option value="None">None</option>
           <option value="WhatsApp">WhatsApp</option>
           <option value="Telegram">Telegram</option>
           <option value="Signal">Signal</option>
-          <option value="Messenger">Messenger</option>
-          <option value="None">None</option>
         </select>
         <span className="chat-icon">
           {form.chat_app === 'WhatsApp' && <Smartphone size={16} />}
           {form.chat_app === 'Telegram' && <Send size={16} />}
           {form.chat_app === 'Signal' && <MessageCircle size={16} />}
-          {form.chat_app === 'Messenger' && <PhoneCall size={16} />}
         </span>
       </div>
 
       <input name="website" value={form.website} onChange={handleChange} placeholder="Website" type="url" />
       <textarea name="about_me" value={form.about_me} onChange={handleChange} placeholder="About Me" />
 
-      <ActionButton type="submit" loading={isPending}>
-        💾 Save Changes
-      </ActionButton>
+      <ActionButton type="submit" loading={isPending}>💾 Save Changes</ActionButton>
 
-      {/* 🖼 Avatar Cropper */}
       {showCropper && photoFile && (
         <AvatarCropModal
           file={photoFile}
-          currentAvatarUrl={previewUrl}
           onClose={() => setShowCropper(false)}
           onUploadSuccess={(url) => {
             setForm((prev) => ({ ...prev, avatar_url: url }));
             setPreviewUrl(url);
             setPhotoFile(null);
             if (fileInputRef.current) fileInputRef.current.value = '';
-            setShowMetaModal(true); // ✅ Only show metadata AFTER crop + upload
+            setShowMetaModal(true);
           }}
+          currentAvatarUrl={previewUrl}
         />
       )}
 
-      {/* 📝 Avatar Metadata */}
       {showMetaModal && (
         <AvatarMetaModal
           imageUrl={form.avatar_url}
           onConfirm={(alt, title) => {
-            setForm((prev) => ({
-              ...prev,
-              avatar_alt: alt,
-              avatar_title: title,
-            }));
+            setForm((prev) => ({ ...prev, avatar_alt: alt, avatar_title: title }));
             setShowMetaModal(false);
           }}
           onCancel={() => setShowMetaModal(false)}

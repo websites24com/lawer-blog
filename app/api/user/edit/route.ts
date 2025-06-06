@@ -11,6 +11,10 @@ const UpdateUserSchema = z.object({
   phone: z.string().optional().nullable(),
   chat_app: z.enum(['WhatsApp', 'Telegram', 'Signal', 'Messenger', 'None']),
   avatar_url: z.string().optional().nullable(),
+  avatar_alt: z.string().optional().nullable(),
+  avatar_title: z.string().optional().nullable(),
+  website: z.string().url().optional().nullable(),
+  about_me: z.string().optional().nullable(),
 });
 
 export async function POST(req: NextRequest) {
@@ -31,13 +35,22 @@ export async function POST(req: NextRequest) {
       phone: form.get('phone'),
       chat_app: form.get('chat_app'),
       avatar_url: form.get('avatar_url'),
+      avatar_alt: form.get('avatar_alt'),
+      avatar_title: form.get('avatar_title'),
+      website: form.get('website'),
+      about_me: form.get('about_me'),
     };
 
     console.log('📨 Raw form data received:', raw);
 
     const parsed = UpdateUserSchema.parse(raw);
+console.log('💾 Saving phone number (parsed):', parsed.phone);
+
+    
 
     const targetUserId = Number(parsed.id);
+    console.log('💾 Saving phone number:', parsed.phone);
+
     const currentUserId = session.user.id;
     const currentUserRole = session.user.role;
 
@@ -51,16 +64,13 @@ export async function POST(req: NextRequest) {
 
     const safeAvatarUrl = parsed.avatar_url?.startsWith('/uploads/avatars/')
       ? parsed.avatar_url
-      : `/uploads/avatars/${parsed.avatar_url}`;
-
-    console.log('🛠 Updating user:', {
-      ...parsed,
-      avatar_url: safeAvatarUrl
-    });
+      : parsed.avatar_url
+      ? `/uploads/avatars/${parsed.avatar_url}`
+      : null;
 
     await db.query(
       `UPDATE users
-       SET first_name = ?, last_name = ?, email = ?, phone = ?, chat_app = ?, avatar_url = ?
+       SET first_name = ?, last_name = ?, email = ?, phone = ?, chat_app = ?, avatar_url = ?, avatar_alt = ?, avatar_title = ?, website = ?, about_me = ?
        WHERE id = ?`,
       [
         parsed.first_name,
@@ -69,6 +79,10 @@ export async function POST(req: NextRequest) {
         parsed.phone || '',
         parsed.chat_app,
         safeAvatarUrl || '',
+        parsed.avatar_alt || '',
+        parsed.avatar_title || '',
+        parsed.website || '',
+        parsed.about_me || '',
         targetUserId,
       ]
     );

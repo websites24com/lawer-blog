@@ -1,128 +1,161 @@
-import { db } from './db';
-import type { UserRow, PostSummary, Comment } from './definitions';
+import { db } from '@/app/lib/db';
+import type { FullUserData, SimpleUser, PostSummary, Comment } from '@/app/lib/definitions';
+import type { RowDataPacket } from 'mysql2';
 
-export async function getUserWithDetails({
-  email,
-  providerId,
-}: {
+type Params = {
   email?: string;
   providerId?: string;
-}): Promise<(UserRow & {
-  posts: PostSummary[];
-  comments: Comment[];
-  followed_posts: PostSummary[];
-}) | null> {
-  if (!email && !providerId) {
-    throw new Error('Missing identifier: email or providerId required');
+};
+
+export async function getUserWithDetails({ email, providerId }: Params): Promise<FullUserData | null> {
+  let userQuery = '';
+  let param: string | undefined;
+
+  if (email) {
+    userQuery = 'SELECT * FROM users WHERE email = ? LIMIT 1';
+    param = email;
+  } else if (providerId) {
+    userQuery = 'SELECT * FROM users WHERE provider_account_id = ? LIMIT 1';
+    param = providerId;
   }
 
-  const query = email
-    ? 'SELECT * FROM users WHERE email = ? LIMIT 1'
-    : 'SELECT * FROM users WHERE provider_account_id = ? LIMIT 1';
-  const value = email || providerId;
+  if (!userQuery || !param) return null;
 
-  const [rows] = await db.query(query, [value]);
-  const user = (rows as any[])[0];
-
+  const [[user]] = await db.query<RowDataPacket[]>(userQuery, [param]);
   if (!user) return null;
 
-  // Fix bad phone formatting
-  if (user.phone === 'null') user.phone = null;
-
-  // Format as UserRow
-  const userRow: UserRow = {
-    id: user.id,
-    first_name: user.first_name,
-    last_name: user.last_name,
-    email: user.email,
-    password: user.password,
-    phone: user.phone,
-    chat_app: user.chat_app,
-    avatar_url: user.avatar_url,
-    role: user.role,
-    status: user.status,
-    provider: user.provider,
-    provider_account_id: user.provider_account_id,
-    created_at: user.created_at,
-  };
-
-  const [posts] = await db.query(
-    `SELECT p.id, p.slug, p.title, p.excerpt, p.created_at, c.name AS category,
-            u.first_name, u.last_name, u.avatar_url, p.featured_photo, p.status
-     FROM posts p
-     LEFT JOIN categories c ON p.category_id = c.id
-     LEFT JOIN users u ON p.user_id = u.id
-     WHERE p.user_id = ?
-     ORDER BY p.created_at DESC`,
+  const [posts] = await db.query<PostSummary[]>(
+    `SELECT id, slug, title, status
+     FROM posts
+     WHERE user_id = ?
+     ORDER BY created_at DESC`,
     [user.id]
   );
 
-  const formattedPosts: PostSummary[] = (posts as any[]).map((p) => ({
-    id: p.id,
-    slug: p.slug,
-    title: p.title,
-    excerpt: p.excerpt,
-    created_at: p.created_at,
-    category: p.category,
-    user: {
-      first_name: p.first_name,
-      last_name: p.last_name,
-    },
-    avatar_url: p.avatar_url,
-    featured_photo: p.featured_photo,
-    status: p.status,
-    followed_by_current_user: false,
-  }));
-
-  const [comments] = await db.query(
-    `SELECT id, message, created_at, name, email
+  const [comments] = await db.query<Comment[]>(
+    `SELECT id, name, email, message, created_at
      FROM comments
      WHERE user_id = ?
      ORDER BY created_at DESC`,
     [user.id]
   );
 
-  const formattedComments: Comment[] = (comments as any[]).map((c) => ({
-    id: c.id,
-    name: c.name,
-    email: c.email,
-    message: c.message,
-    created_at: c.created_at,
-  }));
-
-  const [followed] = await db.query(
-    `SELECT p.id, p.slug, p.title, p.excerpt, p.created_at, c.name AS category,
-            u.first_name, u.last_name, u.avatar_url, p.featured_photo, p.status
-     FROM followed_posts f
-     JOIN posts p ON f.post_id = p.id
-     LEFT JOIN categories c ON p.category_id = c.id
-     LEFT JOIN users u ON p.user_id = u.id
-     WHERE f.user_id = ?
+  const [followed_posts] = await db.query<PostSummary[]>(
+    `SELECT p.id, p.title, p.slug
+     FROM followed_posts fp
+     JOIN posts p ON p.id = fp.post_id
+     WHERE fp.user_id = ?
      ORDER BY p.created_at DESC`,
     [user.id]
   );
 
-  const followedPosts: PostSummary[] = (followed as any[]).map((p) => ({
-    id: p.id,
-    slug: p.slug,
-    title: p.title,
-    excerpt: p.excerpt,
-    created_at: p.created_at,
-    category: p.category,
-    user: {
-      first_name: p.first_name,
-      last_name: p.last_name,
-    },
-    avatar_url: p.avatar_url,
-    featured_photo: p.featured_photo,
-    status: p.status,
-    followed_by_current_user: true,
-  }));
+  const [followers] = await db.query<SimpleUser[]>(
+    `SELECT u.id, u.first_name, u.last_name, u.avatar_url, u.created_at
+     FROM user_followers uf
+     JOIN users u ON u.id = uf.follower_id
+     WHERE uf.followed_id = ?`,
+    [user.id]
+  );
 
   return {
-    ...userRow,
-    posts: formattedPosts,
-    comments: formattedComments,
-    followed_posts: followedPosts,
+    id: user.id,
+    first_name: user.first_name,
+    last_name: user.last_name,
+    email: user.email,
+    avatar_url: user.avatar_url,
+    phone: user.phone,
+    chat_app: user.chat_app,
+    provider: user.provider,
+    provider_account_id: user.provider_account_id,
+    role: user.role,
+    status: user.status,
+    created_at: user.created_at,
+    website: user.website,
+    about_me: user.about_me,
+    posts,
+    comments,
+    followed_posts,
+    followers,
   };
 }
+
+export async function getAllUsers(): Promise<SimpleUser[]> {
+  const [rows] = await db.query<RowDataPacket[]>(
+    `
+    SELECT id, first_name, last_name, slug, avatar_url, created_at
+    FROM users
+    WHERE status = 'approved'
+    ORDER BY created_at DESC
+    `
+  );
+  console.log('[getAllUsers] rows:', rows); // ✅ good for debugging
+  return rows as SimpleUser[];
+}
+
+// This function gets user by their slug (first_name + last_name)
+export async function getUserBySlug(slug: string): Promise<FullUserData | null> {
+  const [firstName, lastName] = slug.trim().split(' ');
+
+  const [[user]] = await db.query<RowDataPacket[]>(
+    `SELECT * FROM users WHERE first_name = ? AND last_name = ? AND status = 'approved' LIMIT 1`,
+    [firstName, lastName]
+  );
+
+  if (!user) return null;
+
+  const [posts] = await db.query<PostSummary[]>(
+    `SELECT id, slug, title, status
+     FROM posts
+     WHERE user_id = ?
+     ORDER BY created_at DESC`,
+    [user.id]
+  );
+
+  const [comments] = await db.query<Comment[]>(
+    `SELECT id, name, email, message, created_at
+     FROM comments
+     WHERE user_id = ?
+     ORDER BY created_at DESC`,
+    [user.id]
+  );
+
+  const [followed_posts] = await db.query<PostSummary[]>(
+    `SELECT p.id, p.title, p.slug
+     FROM followed_posts fp
+     JOIN posts p ON p.id = fp.post_id
+     WHERE fp.user_id = ?
+     ORDER BY p.created_at DESC`,
+    [user.id]
+  );
+
+  const [followers] = await db.query<SimpleUser[]>(
+    `SELECT u.id, u.first_name, u.last_name, u.avatar_url, u.created_at
+     FROM user_followers uf
+     JOIN users u ON u.id = uf.follower_id
+     WHERE uf.followed_id = ?`,
+    [user.id]
+  );
+
+  return {
+    id: user.id,
+    first_name: user.first_name,
+    last_name: user.last_name,
+    email: user.email,
+    avatar_url: user.avatar_url,
+    phone: user.phone,
+    chat_app: user.chat_app,
+    provider: user.provider,
+    provider_account_id: user.provider_account_id,
+    role: user.role,
+    status: user.status,
+    created_at: user.created_at,
+    website: user.website,
+    about_me: user.about_me,
+    posts,
+    comments,
+    followed_posts,
+    followers,
+  };
+}
+
+

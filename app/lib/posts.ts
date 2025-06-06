@@ -3,7 +3,7 @@
 import { db } from '@/app/lib/db';
 import type { PostSummary, PostWithDetails } from '@/app/lib/definitions';
 
-// Public - Approved posts
+// ✅ Public - Approved posts
 export async function getAllApprovedPosts(userId?: number): Promise<PostSummary[]> {
   const [rows] = await db.query<any[]>(
     `
@@ -18,6 +18,7 @@ export async function getAllApprovedPosts(userId?: number): Promise<PostSummary[
       users.first_name,
       users.last_name,
       users.avatar_url,
+      users.slug AS user_slug, -- ✅ DODAJ
       ${
         userId
           ? `EXISTS (
@@ -47,11 +48,12 @@ export async function getAllApprovedPosts(userId?: number): Promise<PostSummary[
       first_name: row.first_name,
       last_name: row.last_name,
       avatar_url: row.avatar_url,
+      slug: row.user_slug, // ✅ DODAJ
     },
   }));
 }
 
-// To user dashboard - All posts
+// ✅ To user dashboard - All posts
 export async function getAllPosts(userId: number): Promise<PostSummary[]> {
   const [rows] = await db.query<any[]>(
     `
@@ -66,6 +68,7 @@ export async function getAllPosts(userId: number): Promise<PostSummary[]> {
       users.first_name,
       users.last_name,
       users.avatar_url,
+      users.slug AS user_slug, -- ✅ DODAJ
       EXISTS (
         SELECT 1 FROM followed_posts 
         WHERE followed_posts.user_id = ? AND followed_posts.post_id = posts.id
@@ -91,11 +94,12 @@ export async function getAllPosts(userId: number): Promise<PostSummary[]> {
       first_name: row.first_name,
       last_name: row.last_name,
       avatar_url: row.avatar_url,
+      slug: row.user_slug, // ✅ DODAJ
     },
   }));
 }
 
-// ✅ Get post with all details for editing
+// ✅ Get post with all details for editing or viewing
 export async function getPostBySlug(slug: string, userId: number): Promise<PostWithDetails | null> {
   const [rows] = await db.query<any[]>(
     `
@@ -106,6 +110,7 @@ export async function getPostBySlug(slug: string, userId: number): Promise<PostW
       users.first_name,
       users.last_name,
       users.avatar_url,
+      users.slug AS user_slug, -- ✅ DODAJ
       EXISTS (
         SELECT 1 FROM followed_posts 
         WHERE followed_posts.user_id = ? AND followed_posts.post_id = posts.id
@@ -141,18 +146,19 @@ export async function getPostBySlug(slug: string, userId: number): Promise<PostW
     featured_photo: post.featured_photo,
     status: post.status,
     category: post.category,
-    category_id: post.category_id, // ✅ required for EditPostForm
+    category_id: post.category_id,
     followed_by_current_user: !!post.followed_by_current_user,
     user: {
       first_name: post.first_name,
       last_name: post.last_name,
       avatar_url: post.avatar_url,
+      slug: post.user_slug, // ✅ DODAJ
     },
     comments,
   };
 }
 
-// All categories
+// ✅ All categories
 export async function getAllCategories(): Promise<{ id: number; name: string }[]> {
   const [rows] = await db.query('SELECT id, name FROM categories ORDER BY name ASC');
   return rows as { id: number; name: string }[];

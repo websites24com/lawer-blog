@@ -38,7 +38,7 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    const filename = `${uuid()}.jpg`;
+    const filename = uuid() + '.webp'; // Use .webp extension
     const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'avatars');
     const filepath = path.join(uploadDir, filename);
 
@@ -46,7 +46,7 @@ export async function POST(request: Request): Promise<Response> {
 
     await sharp(buffer)
       .resize(300, 300)
-      .jpeg({ quality: 80 })
+      .webp({ quality: 85 }) // 🔧 Changed from .jpeg() to .webp()
       .toFile(filepath);
 
     return NextResponse.json({ url: `/uploads/avatars/${filename}` });

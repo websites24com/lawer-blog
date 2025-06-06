@@ -17,8 +17,17 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    console.log('📦 Sending user dashboard payload:', userData);
-    return NextResponse.json(userData);
+    // ✅ Ensure consistent response shape
+    const payload = {
+      ...userData,
+      posts: userData.posts || [],
+      comments: userData.comments || [],
+      followed_posts: userData.followed_posts || [],
+      followers: userData.followers || [],
+    };
+
+    console.log('📦 Sending user dashboard payload:', payload);
+    return NextResponse.json(payload);
   } catch (err) {
     console.error('❌ Failed to load user data:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
