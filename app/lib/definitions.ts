@@ -29,6 +29,7 @@ export type PostSummary = {
     avatar_url: string | null;
     slug: string; // ✅ required for author links
   };
+  status: string
 };
 
 // ✅ Full post detail with content and comments

@@ -23,8 +23,10 @@ export default function CreatePostForm({ categories }: CreatePostFormProps) {
   });
 
   const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [isPending, startTransition] = useTransition();
   const [showCropper, setShowCropper] = useState(false);
+  const [isPending, startTransition] = useTransition();
+  const [usedImages, setUsedImages] = useState<string[]>([]); // ✅ track inserted TipTap images
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const router = useRouter();
 
@@ -46,8 +48,7 @@ export default function CreatePostForm({ categories }: CreatePostFormProps) {
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setPhotoFile(file);
+      setPhotoFile(e.target.files[0]);
       setShowCropper(true);
     }
   };
@@ -69,6 +70,14 @@ export default function CreatePostForm({ categories }: CreatePostFormProps) {
       return updated;
     });
     setContentCount(value.length);
+
+    // ✅ Extract all <img src="..."> from content
+    const matches = value.match(/<img[^>]+src="([^">]+)"/g) || [];
+    const srcs = matches.map((img) => {
+      const match = img.match(/src="([^">]+)"/);
+      return match ? match[1] : '';
+    }).filter(Boolean);
+    setUsedImages(srcs);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -76,6 +85,17 @@ export default function CreatePostForm({ categories }: CreatePostFormProps) {
 
     startTransition(async () => {
       try {
+        // ✅ Clean up unused uploaded images
+        await fetch('/api/user/posts/editor/cleanup-unused-uploaded-images', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            usedImages,
+            featuredPhoto: form.featured_photo,
+          }),
+        });
+
+        // ✅ Then proceed with post creation
         const formData = new FormData();
         formData.append('title', form.title);
         formData.append('excerpt', form.excerpt);
@@ -89,8 +109,6 @@ export default function CreatePostForm({ categories }: CreatePostFormProps) {
         });
 
         const data = await res.json();
-        console.log('📦 CreatePost response:', data);
-
         if (!res.ok) throw new Error(data.error || 'Unknown error');
         router.refresh();
         router.push('/user');
@@ -180,8 +198,6 @@ export default function CreatePostForm({ categories }: CreatePostFormProps) {
       <RichTextEditor value={form.content} onChange={handleContentChange} />
       <small style={{ alignSelf: 'flex-end' }}>{contentCount}/10000</small>
 
-     
-
       <label>Category:</label>
       <select name="category_id" value={form.category_id} onChange={handleChange}>
         {categories.map((cat) => (
@@ -204,13 +220,13 @@ export default function CreatePostForm({ categories }: CreatePostFormProps) {
       </div>
 
       <input type="file" accept="image/*" onChange={handlePhotoChange} ref={fileInputRef} />
-      
 
       <ActionButton type="submit" loading={isPending}>Create Post</ActionButton>
 
       {showCropper && photoFile && (
         <ImageCropModal
           file={photoFile}
+          currentPhotoUrl={form.featured_photo} // ✅ required
           onClose={() => setShowCropper(false)}
           onUploadSuccess={(url) => {
             setForm(prev => {

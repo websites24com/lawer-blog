@@ -1,264 +1,170 @@
 'use client';
 
-import { useEffect, useRef, useState, useTransition } from 'react';
-import { useSession } from 'next-auth/react';
+import { useState, useRef, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 
-import ActionButton from '@/app/components/ActionButton';
 import ImageWithFallback from '@/app/components/ImageWithFallback';
-import PhoneNumberInput from '@/app/components/PhoneNumberInput';
-import AvatarCropModal from '@/app/components/AvatarCropModal';
-import AvatarMetaModal from '@/app/components/AvatarMetaModal';
-import Spinner from '@/app/components/Spinner';
+import RichTextEditor from '@/app/components/RichTextEditor';
+import ImageCropModal from '@/app/components/ImageCropModal';
+import ActionButton from '@/app/components/ActionButton';
 
-import { MessageCircle, Smartphone, Send, PhoneCall, Trash2 } from 'lucide-react';
+import type { PostWithDetails, Category } from '@/app/lib/definitions';
 
-export default function EditUserPage() {
-  const { data: session, status } = useSession();
+type Props = {
+  post: PostWithDetails;
+  categories: Category[];
+};
+
+export default function EditPostForm({ post, categories }: Props) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const [form, setForm] = useState({
-    first_name: '',
-    last_name: '',
-    email: '',
-    phone: '',
-    chat_app: '',
-    website: '',
-    about_me: '',
-    avatar_url: '',
-    avatar_alt: '',
-    avatar_title: '',
+    title: post.title,
+    excerpt: post.excerpt,
+    content: post.content,
+    category_id: post.category_id.toString(),
+    featured_photo: post.featured_photo || '/uploads/posts/default.jpg',
   });
 
-  const [previewUrl, setPreviewUrl] = useState('');
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [showCropper, setShowCropper] = useState(false);
-  const [showMetaModal, setShowMetaModal] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [countdown, setCountdown] = useState(5);
-
-  // Redirect if unauthenticated
-  useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/login');
-    }
-  }, [status, router]);
-
-  // Load user info
-  useEffect(() => {
-    if (status === 'authenticated' && session?.user?.email) {
-      const query = session.user.email
-        ? `email=${encodeURIComponent(session.user.email)}`
-        : session.user.id
-        ? `providerId=${encodeURIComponent(session.user.id)}`
-        : '';
-
-      fetch(`/api/user?${query}`)
-        .then((res) => res.json())
-        .then((data) => {
-          setForm({
-            first_name: data.first_name || '',
-            last_name: data.last_name || '',
-            email: data.email || '',
-            phone: data.phone || '',
-            chat_app: data.chat_app || '',
-            website: data.website || '',
-            about_me: data.about_me || '',
-            avatar_url: data.avatar_url || '',
-            avatar_alt: data.avatar_alt || '',
-            avatar_title: data.avatar_title || '',
-          });
-          setPreviewUrl(data.avatar_url || '');
-          setLoading(false);
-        })
-        .catch((err) => {
-          console.error('❌ Failed to load user:', err);
-          setLoading(false);
-        });
-    }
-  }, [status, session]);
-
-  // Countdown redirect
-  useEffect(() => {
-    if (countdown > 0 && countdown < 5) {
-      const timer = setTimeout(() => setCountdown((c) => c - 1), 1000);
-      return () => clearTimeout(timer);
-    } else if (countdown === 0) {
-      router.push('/user');
-    }
-  }, [countdown, router]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+    setForm(prev => ({ ...prev, [name]: value }));
   };
 
-  const handlePhoneChange = (value: string) => {
-    setForm((prev) => ({ ...prev, phone: value }));
+  const handleContentChange = (value: string) => {
+    setForm(prev => ({ ...prev, content: value }));
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setPhotoFile(file);
-    setShowCropper(true); // Only cropper should show first
-  };
-
-  const handleDeleteAvatar = async () => {
-    try {
-      const res = await fetch('/api/avatar/delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: form.avatar_url }),
-      });
-      if (!res.ok) throw new Error();
-
-      const updateRes = await fetch('/api/user/edit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...form,
-          id: session.user.id,
-          avatar_url: '/uploads/avatars/default.jpg',
-          avatar_alt: '',
-          avatar_title: '',
-        }),
-      });
-      if (!updateRes.ok) throw new Error();
-
-      setForm((prev) => ({
-        ...prev,
-        avatar_url: '/uploads/avatars/default.jpg',
-        avatar_alt: '',
-        avatar_title: '',
-      }));
-      setPreviewUrl('/uploads/avatars/default.jpg');
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      toast.success('Avatar deleted');
-    } catch {
-      toast.error('Failed to delete avatar');
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setPhotoFile(e.target.files[0]);
+      setShowCropper(true);
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleDeletePhoto = async () => {
+    if (form.featured_photo.includes('/default.jpg')) return;
+
+    try {
+      const res = await fetch('/api/user/posts/delete-photo', {
+        method: 'POST',
+        body: JSON.stringify({ photoPath: form.featured_photo }),
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (res.ok) {
+        toast.success('Photo deleted');
+        setForm(prev => ({ ...prev, featured_photo: '/uploads/posts/default.jpg' }));
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      } else {
+        toast.error('Delete failed');
+      }
+    } catch (err) {
+      toast.error('Server error');
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
     startTransition(async () => {
       try {
-        const body = new FormData();
-        body.append('id', session.user.id);
-        Object.entries(form).forEach(([key, val]) => {
-          if (val !== undefined && val !== null) {
-            body.append(key, val);
-          }
-        });
+        const formData = new FormData();
+        formData.append('title', form.title);
+        formData.append('excerpt', form.excerpt);
+        formData.append('content', form.content);
+        formData.append('category_id', form.category_id);
+        formData.append('featured_photo_url', form.featured_photo);
+        formData.append('old_photo', post.featured_photo || '/uploads/posts/default.jpg');
+        if (photoFile) formData.append('featured_photo', photoFile);
 
-        const res = await fetch('/api/user/edit', {
+        const res = await fetch(`/api/user/posts/edit/${post.slug}`, {
           method: 'POST',
-          body,
+          body: formData,
         });
 
         if (!res.ok) throw new Error();
-        await fetch('/api/avatar/cleanup-unused', { method: 'POST' });
 
-        toast.success('Profile updated — redirecting in 5s...');
-        setCountdown(4);
+        // ✅ CLEANUP AFTER SUCCESSFUL EDIT
+        await fetch('/api/user/posts/editor/cleanup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: form.content,
+            featured: form.featured_photo,
+          }),
+        });
+
+        toast.success('Post updated');
+        router.refresh();
+        router.push('/user');
       } catch {
-        toast.error('Failed to update profile');
+        toast.error('Update failed');
       }
     });
   };
 
-  if (status === 'loading' || loading) return <Spinner />;
-  if (!session) return null;
-
   return (
-    <form onSubmit={handleSubmit} className="user-edit-form">
-      <h1>Update Profile</h1>
+    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      <input
+        name="title"
+        value={form.title}
+        onChange={handleChange}
+        placeholder="Title"
+        maxLength={70}
+        required
+      />
+      <textarea
+        name="excerpt"
+        value={form.excerpt}
+        onChange={handleChange}
+        placeholder="Excerpt"
+        maxLength={300}
+        required
+      />
+      <RichTextEditor value={form.content} onChange={handleContentChange} />
+      <select name="category_id" value={form.category_id} onChange={handleChange}>
+        {categories.map(c => (
+          <option key={c.id} value={c.id}>
+            {c.name}
+          </option>
+        ))}
+      </select>
 
-      <div className="user-avatar-section">
-        <div className="image-wrapper-avatar">
-          <ImageWithFallback
-            src={previewUrl}
-            alt={form.avatar_alt || 'User avatar'}
-            title={form.avatar_title || ''}
-            className="fallback-image-avatar"
-            imageType="avatar"
-            wrapperClassName="image-wrapper-avatar"
-          />
-        </div>
-        {previewUrl && (
-          <button type="button" className="delete-avatar-button" onClick={handleDeleteAvatar}>
-            <Trash2 size={16} /> Remove
-          </button>
-        )}
-      </div>
-
-      <input type="file" accept="image/*" ref={fileInputRef} onChange={handleFileChange} />
-
-      <input name="first_name" value={form.first_name} onChange={handleChange} placeholder="First Name" required />
-      <input name="last_name" value={form.last_name} onChange={handleChange} placeholder="Last Name" required />
-      <input name="email" value={form.email} onChange={handleChange} placeholder="Email" type="email" required />
-
-      <label htmlFor="phone">Phone</label>
-      <PhoneNumberInput value={form.phone} onChange={handlePhoneChange} name="phone" />
-
-      <label htmlFor="chat_app">Chat App</label>
-      <div className="chat-app-wrapper">
-        <select name="chat_app" value={form.chat_app} onChange={handleChange} required>
-          <option value="">Select chat app</option>
-          <option value="WhatsApp">WhatsApp</option>
-          <option value="Telegram">Telegram</option>
-          <option value="Signal">Signal</option>
-          <option value="Messenger">Messenger</option>
-          <option value="None">None</option>
-        </select>
-        <span className="chat-icon">
-          {form.chat_app === 'WhatsApp' && <Smartphone size={16} />}
-          {form.chat_app === 'Telegram' && <Send size={16} />}
-          {form.chat_app === 'Signal' && <MessageCircle size={16} />}
-          {form.chat_app === 'Messenger' && <PhoneCall size={16} />}
-        </span>
-      </div>
-
-      <input name="website" value={form.website} onChange={handleChange} placeholder="Website" type="url" />
-      <textarea name="about_me" value={form.about_me} onChange={handleChange} placeholder="About Me" />
-
+      <ImageWithFallback
+        src={form.featured_photo}
+        alt="Featured photo"
+        imageType="bike"
+      />
+      <input
+        type="file"
+        accept="image/*"
+        onChange={handlePhotoChange}
+        ref={fileInputRef}
+      />
+      <ActionButton type="button" onClick={handleDeletePhoto}>
+        Delete Photo
+      </ActionButton>
       <ActionButton type="submit" loading={isPending}>
-        💾 Save Changes
+        Update
       </ActionButton>
 
-      {/* 🖼 Avatar Cropper */}
       {showCropper && photoFile && (
-        <AvatarCropModal
+        <ImageCropModal
           file={photoFile}
-          currentAvatarUrl={previewUrl}
           onClose={() => setShowCropper(false)}
           onUploadSuccess={(url) => {
-            setForm((prev) => ({ ...prev, avatar_url: url }));
-            setPreviewUrl(url);
+            setForm(prev => ({ ...prev, featured_photo: url }));
             setPhotoFile(null);
             if (fileInputRef.current) fileInputRef.current.value = '';
-            setShowMetaModal(true); // ✅ Only show metadata AFTER crop + upload
           }}
-        />
-      )}
-
-      {/* 📝 Avatar Metadata */}
-      {showMetaModal && (
-        <AvatarMetaModal
-          imageUrl={form.avatar_url}
-          onConfirm={(alt, title) => {
-            setForm((prev) => ({
-              ...prev,
-              avatar_alt: alt,
-              avatar_title: title,
-            }));
-            setShowMetaModal(false);
-          }}
-          onCancel={() => setShowMetaModal(false)}
+          currentPhotoUrl={form.featured_photo}
         />
       )}
     </form>

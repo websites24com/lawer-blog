@@ -6,13 +6,11 @@ import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { confirmAlert } from 'react-confirm-alert';
 import 'react-confirm-alert/src/react-confirm-alert.css';
-
 import ImageWithFallback from '@/app/components/ImageWithFallback';
 import FollowButton from '@/app/components/FollowButton';
 import ActionButton from '@/app/components/ActionButton';
 import Spinner from '@/app/components/Spinner';
 import FancyDate from '@/app/components/FancyDate';
-
 import { unfollowPost } from '@/app/actions/posts';
 import type {
   UserRow,
@@ -20,6 +18,12 @@ import type {
   Comment,
   SimpleUser,
 } from '@/app/lib/definitions';
+import RenderWebsite from '@/app/components/RenderWebsite';
+import TimeFromDate from '@/app/components/TimeFromDate';
+import { RenderPhone } from '@/app/components/RenderPhone';
+import { formatOrDash } from '@/app/utils/formatOrDash';
+import RenderEmail from '@/app/components/RenderEmail';
+
 
 type FullUserData = UserRow & {
   posts: PostSummary[];
@@ -70,70 +74,10 @@ export default function UserPage() {
   }
   if (!userData) return <p>Error loading user data.</p>;
 
-  const formatOrDash = (val: any) => (val ? val : '—');
+  
 
-  const renderPhone = (phone: string | null) => {
-    if (!phone) return '—';
-    const formatted = phone.startsWith('+') ? phone : `+${phone}`;
-    return (
-      <a href={`tel:${formatted}`} target="_blank" rel="noopener noreferrer">
-        {formatted}
-      </a>
-    );
-  };
 
-  const renderWebsite = (url: string | null) => {
-    if (!url) return '—';
-    const href = url.startsWith('http') ? url : `https://${url}`;
-    let display = href.replace(/^https?:\/\//, '');
-    if (!display.startsWith('www.')) {
-      display = 'www.' + display;
-    }
-    return (
-      <a href={href} target="_blank" rel="noopener noreferrer">
-        {display}
-      </a>
-    );
-  };
-
-  const renderEmail = (email: string | null) => {
-    if (!email) return '—';
-    return (
-      <a href={`mailto:${email}`} target="_blank" rel="noopener noreferrer">
-        {email}
-      </a>
-    );
-  };
-
-  const getDurationString = (date: string) => {
-    if (!date) return '';
-    const start = new Date(date);
-    const end = new Date();
-
-    let years = end.getFullYear() - start.getFullYear();
-    let months = end.getMonth() - start.getMonth();
-    let days = end.getDate() - start.getDate();
-
-    if (days < 0) {
-      months -= 1;
-      const prevMonth = new Date(end.getFullYear(), end.getMonth(), 0);
-      days += prevMonth.getDate();
-    }
-
-    if (months < 0) {
-      years -= 1;
-      months += 12;
-    }
-
-    const parts = [];
-    if (years > 0) parts.push(`${years} year${years > 1 ? 's' : ''}`);
-    if (months > 0) parts.push(`${months} month${months > 1 ? 's' : ''}`);
-    if (days > 0) parts.push(`${days} day${days > 1 ? 's' : ''}`);
-
-    return parts.length > 0 ? parts.join(', ') : 'less than a day';
-  };
-
-  const handleUnfollow = async (postId: number) => {
+const handleUnfollow = async (postId: number) => {
     startTransition(async () => {
       try {
         await unfollowPost(postId);
@@ -204,35 +148,76 @@ export default function UserPage() {
       </div>
 
       <div className="user-info-block">
-        <p><strong>Email:</strong> {renderEmail(userData.email)}</p>
-        <p><strong>Phone:</strong> {renderPhone(userData.phone)} {userData.chat_app ? `(${userData.chat_app})` : ''}</p>
-        <p><strong>Website:</strong> {renderWebsite(userData.website)}</p>
+        <p><strong>Email:</strong> <RenderEmail email={userData.email} /></p>
+        <p><strong>Phone:</strong> <RenderPhone phone={userData.phone}/>{userData.chat_app ? `(${userData.chat_app})` : ''}</p>
+        <p><strong>Website:</strong> <RenderWebsite url={userData.website}/></p>
         <p><strong>About Me:</strong> {formatOrDash(userData.about_me)}</p>
         <p><strong>Provider:</strong> {formatOrDash(userData.provider)}</p>
         <p><strong>Account ID:</strong> {formatOrDash(userData.provider_account_id)}</p>
         <p><strong>Role:</strong> {formatOrDash(userData.role)}</p>
         <p><strong>Status:</strong> {formatOrDash(userData.status)}</p>
         <p><strong>Created At:</strong> <FancyDate dateString={userData.created_at} /></p>
-        <p><strong>User is with us from:</strong> {getDurationString(userData.created_at)}</p>
+        <p>
+        <strong>User is with us from:</strong>{' '}
+        <TimeFromDate date={userData.created_at} />
+        </p>
+         <div className="actions">
+          <ActionButton onClick={() => router.push('/user/edit')} title="Edit your profile">✏️ Update Profile</ActionButton>
+          <ActionButton onClick={() => router.push('/user/delete')}>🗑 Delete Account</ActionButton>
+        </div>
       </div>
 
       <div className="user-section">
-        <h2>📝 My Posts</h2>
-        {userData.posts?.length > 0 ? (
-          <ul>
-            {userData.posts.map((post) => (
-              <li key={post.id}>
-                <a href={`/blog/${post.slug}`} target="_blank" rel="noopener noreferrer">
-                  {post.title} ({post.status})
-                </a>
-                <ActionButton label="Delete" onClick={() => handleDeletePost(post.id)} />
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p>You haven’t published any posts.</p>
-        )}
-      </div>
+  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <h2>📝 My Posts</h2>
+   
+  </div>
+ <ActionButton onClick={() => router.push('/blog/create')} title="Create a new blog post">
+      ➕ Create Post
+    </ActionButton>
+  {userData.posts?.length > 0 ? (
+    <ul style={{ listStyle: 'none', padding: 0 }}>
+      {userData.posts.map((post) => (
+        <li
+          key={post.id}
+          style={{
+            marginBottom: '1.5rem',
+            paddingBottom: '1rem',
+            borderBottom: '1px solid #ccc',
+          }}
+        >
+          <strong>{post.title}</strong> ({post.status})
+
+          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+            <ActionButton
+              onClick={() => router.push(`/blog/${post.slug}`)}
+              title="View this post"
+            >
+              👁️ View
+            </ActionButton>
+
+            <ActionButton
+              onClick={() => router.push(`/blog/edit/${post.slug}`)}
+              title="Edit this post"
+            >
+              ✏️ Edit
+            </ActionButton>
+
+            <ActionButton
+              onClick={() => handleDeletePost(post.id)}
+              title="Delete this post"
+            >
+              🗑️ Delete
+            </ActionButton>
+          </div>
+        </li>
+      ))}
+    </ul>
+  ) : (
+    <p>You haven’t published any posts.</p>
+  )}
+</div>
+
 
       <div className="user-section">
         <h2>⭐ Followed Posts</h2>
