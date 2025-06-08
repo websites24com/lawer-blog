@@ -6,6 +6,7 @@ import ActionButton from '@/app/components/ActionButton';
 import ImageWithFallback from '@/app/components/ImageWithFallback';
 import RichTextEditor from '@/app/components/RichTextEditor';
 import ImageCropModal from '@/app/components/ImageCropModal';
+import { Icon } from '@iconify/react';
 
 let previewWindow: Window | null = null;
 
@@ -25,7 +26,6 @@ export default function CreatePostForm({ categories }: CreatePostFormProps) {
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [showCropper, setShowCropper] = useState(false);
   const [isPending, startTransition] = useTransition();
-  const [usedImages, setUsedImages] = useState<string[]>([]); // ✅ track inserted TipTap images
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const router = useRouter();
@@ -70,14 +70,6 @@ export default function CreatePostForm({ categories }: CreatePostFormProps) {
       return updated;
     });
     setContentCount(value.length);
-
-    // ✅ Extract all <img src="..."> from content
-    const matches = value.match(/<img[^>]+src="([^">]+)"/g) || [];
-    const srcs = matches.map((img) => {
-      const match = img.match(/src="([^">]+)"/);
-      return match ? match[1] : '';
-    }).filter(Boolean);
-    setUsedImages(srcs);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -85,23 +77,14 @@ export default function CreatePostForm({ categories }: CreatePostFormProps) {
 
     startTransition(async () => {
       try {
-        // ✅ Clean up unused uploaded images
-        await fetch('/api/user/posts/editor/cleanup-unused-uploaded-images', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            usedImages,
-            featuredPhoto: form.featured_photo,
-          }),
-        });
-
-        // ✅ Then proceed with post creation
         const formData = new FormData();
         formData.append('title', form.title);
         formData.append('excerpt', form.excerpt);
         formData.append('content', form.content);
         formData.append('category_id', form.category_id);
         formData.append('featured_photo_url', form.featured_photo);
+
+        if (previewWindow && !previewWindow.closed) previewWindow.close();
 
         const res = await fetch('/api/user/posts/create', {
           method: 'POST',
@@ -192,11 +175,11 @@ export default function CreatePostForm({ categories }: CreatePostFormProps) {
         maxLength={300}
         required
       />
-      <small style={{ alignSelf: 'flex-end' }}>{excerptCount}/300</small>
+      <small style={{ alignSelf: 'flex-end' }}>{excerptCount}/300}</small>
 
       <label htmlFor="content">Content:</label>
       <RichTextEditor value={form.content} onChange={handleContentChange} />
-      <small style={{ alignSelf: 'flex-end' }}>{contentCount}/10000</small>
+      <small style={{ alignSelf: 'flex-end' }}>{contentCount}/10000}</small>
 
       <label>Category:</label>
       <select name="category_id" value={form.category_id} onChange={handleChange}>
@@ -216,17 +199,24 @@ export default function CreatePostForm({ categories }: CreatePostFormProps) {
       </div>
 
       <div style={{ display: 'flex', gap: '0.5rem' }}>
-        <ActionButton type="button" onClick={handleDeletePhoto}>Delete Photo</ActionButton>
+        <ActionButton type="button" onClick={handleDeletePhoto} disabled={isPending} title="Delete Photo">
+          <Icon icon="twemoji:wastebasket" width="20" height="20" /> Delete
+        </ActionButton>
+        <ActionButton type="button" onClick={openLivePreview} disabled={isPending} title="Live Preview">
+          <Icon icon="twemoji:eye" width="20" height="20" /> Preview
+        </ActionButton>
       </div>
 
-      <input type="file" accept="image/*" onChange={handlePhotoChange} ref={fileInputRef} />
+      <input type="file" accept="image/*" onChange={handlePhotoChange} ref={fileInputRef} disabled={isPending} />
 
-      <ActionButton type="submit" loading={isPending}>Create Post</ActionButton>
+      <ActionButton type="submit" loading={isPending} disabled={isPending} title="Create Post">
+        <Icon icon="twemoji:rocket" width="20" height="20" /> Create Post
+      </ActionButton>
 
       {showCropper && photoFile && (
         <ImageCropModal
           file={photoFile}
-          currentPhotoUrl={form.featured_photo} // ✅ required
+          currentPhotoUrl={form.featured_photo}
           onClose={() => setShowCropper(false)}
           onUploadSuccess={(url) => {
             setForm(prev => {

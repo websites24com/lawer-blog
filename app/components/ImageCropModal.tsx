@@ -4,6 +4,7 @@ import Cropper from 'react-easy-crop';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import getCroppedImg from '@/app/utils/postImages/cropImage';
+import Spinner from '@/app/components/Spinner'; // ✅ Your Spinner component
 
 import type { Area } from 'react-easy-crop';
 
@@ -11,7 +12,7 @@ type Props = {
   file: File;
   onClose: () => void;
   onUploadSuccess: (url: string) => void;
-  currentPhotoUrl: string; // ✅ Added this prop to track the old photo
+  currentPhotoUrl: string;
 };
 
 export default function ImageCropModal({ file, onClose, onUploadSuccess, currentPhotoUrl }: Props) {
@@ -21,11 +22,11 @@ export default function ImageCropModal({ file, onClose, onUploadSuccess, current
   const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
   const [isCropped, setIsCropped] = useState(false);
   const [croppedBlob, setCroppedBlob] = useState<Blob | null>(null);
+  const [isUploading, setIsUploading] = useState(false); // ✅ upload state lock
   const containerRef = useRef<HTMLDivElement>(null);
   const localUrl = useRef(URL.createObjectURL(file)).current;
   const [cropDimensions, setCropDimensions] = useState<{ width: number; height: number } | null>(null);
 
-  // Preload image and set default zoom
   useEffect(() => {
     const img = new Image();
     img.src = localUrl;
@@ -40,7 +41,6 @@ export default function ImageCropModal({ file, onClose, onUploadSuccess, current
     };
   }, [localUrl]);
 
-  // Capture crop area dimensions
   const handleCropComplete = useCallback((_: Area, croppedPixels: Area) => {
     setCroppedAreaPixels(croppedPixels);
     setCropDimensions({
@@ -49,7 +49,6 @@ export default function ImageCropModal({ file, onClose, onUploadSuccess, current
     });
   }, []);
 
-  // Generate cropped Blob from canvas
   const handleCropNow = async () => {
     if (!croppedAreaPixels) {
       toast.error('No crop area defined');
@@ -66,13 +65,16 @@ export default function ImageCropModal({ file, onClose, onUploadSuccess, current
     }
   };
 
-  // Upload the cropped image to server and delete old one
   const handleUpload = async () => {
+    if (isUploading) return; // ✅ Prevent double click
+
+    if (!croppedBlob) {
+      toast.error('No cropped image to upload');
+      return;
+    }
+
     try {
-      if (!croppedBlob) {
-        toast.error('No cropped image to upload');
-        return;
-      }
+      setIsUploading(true); // ✅ Lock
 
       const formData = new FormData();
       formData.append('image', croppedBlob, 'cropped-image.webp');
@@ -95,7 +97,7 @@ export default function ImageCropModal({ file, onClose, onUploadSuccess, current
       if (res.ok) {
         toast.success('Image uploaded');
 
-        // ✅ Delete old image unless it’s fallback
+        // ✅ Delete previous photo unless it's default
         if (currentPhotoUrl && !currentPhotoUrl.includes('/uploads/posts/default.jpg')) {
           try {
             await fetch('/api/user/posts/delete-photo', {
@@ -116,13 +118,14 @@ export default function ImageCropModal({ file, onClose, onUploadSuccess, current
     } catch (err) {
       console.error('❌ Upload failed:', err);
       toast.error('Upload failed');
+    } finally {
+      setIsUploading(false); // ✅ Unlock
     }
   };
 
   return (
     <div className="image-crop-modal">
       <div className="modal-content" ref={containerRef}>
-        {/* Cropper container */}
         <div className="crop-container">
           <Cropper
             image={localUrl}
@@ -138,7 +141,6 @@ export default function ImageCropModal({ file, onClose, onUploadSuccess, current
           />
         </div>
 
-        {/* Zoom control */}
         <input
           type="range"
           min={1}
@@ -148,7 +150,6 @@ export default function ImageCropModal({ file, onClose, onUploadSuccess, current
           onChange={(e) => setZoom(Number(e.target.value))}
         />
 
-        {/* Metadata preview */}
         {imageSize && (
           <div className="crop-meta">
             Original: {imageSize.width}×{imageSize.height}
@@ -159,11 +160,18 @@ export default function ImageCropModal({ file, onClose, onUploadSuccess, current
           </div>
         )}
 
-        {/* Action buttons */}
         <div className="modal-actions">
-          <button type="button" onClick={handleCropNow}>Crop</button>
-          <button type="button" onClick={handleUpload} disabled={!isCropped}>Upload</button>
-          <button type="button" onClick={onClose}>Cancel</button>
+          <button type="button" onClick={handleCropNow} disabled={isUploading}>Crop</button>
+
+          <button
+            type="button"
+            onClick={handleUpload}
+            disabled={!isCropped || isUploading}
+          >
+            {isUploading ? <Spinner /> : 'Upload'}
+          </button>
+
+          <button type="button" onClick={onClose} disabled={isUploading}>Cancel</button>
         </div>
       </div>
     </div>

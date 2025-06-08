@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react';
 type Props = {
   src: string | null;
   fallbackSrc?: string;
-  imageType?: 'bike' | 'avatar'; // Default: 'bike'
+  imageType?: 'post' | 'avatar'; // Default: 'bike'
   alt: string;
   className?: string;
   wrapperClassName?: string;
@@ -15,7 +15,7 @@ type Props = {
 export default function ImageWithFallback({
   src,
   fallbackSrc,
-  imageType = 'bike',
+  imageType = 'post',
   alt,
   className,
   wrapperClassName,

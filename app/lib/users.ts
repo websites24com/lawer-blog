@@ -24,15 +24,23 @@ export async function getUserWithDetails({ email, providerId }: Params): Promise
   const [[user]] = await db.query<RowDataPacket[]>(userQuery, [param]);
   if (!user) return null;
 
-  const [posts] = await db.query<PostSummary[]>(
-    `SELECT id, slug, title, status
+  const [postRows] = await db.query<RowDataPacket[]>(
+    `SELECT id, slug, title, status, featured_photo
      FROM posts
      WHERE user_id = ?
      ORDER BY created_at DESC`,
     [user.id]
   );
 
-  const [comments] = await db.query<Comment[]>(
+  const posts = postRows.map((row) => ({
+    id: row.id,
+    slug: row.slug,
+    title: row.title,
+    status: row.status,
+    featured_photo: row.featured_photo,
+  }));
+
+  const [comments] = await db.query<RowDataPacket[]>(
     `SELECT id, name, email, message, created_at
      FROM comments
      WHERE user_id = ?
@@ -40,7 +48,7 @@ export async function getUserWithDetails({ email, providerId }: Params): Promise
     [user.id]
   );
 
-  const [followed_posts] = await db.query<PostSummary[]>(
+  const [followedPostsRows] = await db.query<RowDataPacket[]>(
     `SELECT p.id, p.title, p.slug
      FROM followed_posts fp
      JOIN posts p ON p.id = fp.post_id
@@ -49,7 +57,13 @@ export async function getUserWithDetails({ email, providerId }: Params): Promise
     [user.id]
   );
 
-  const [followers] = await db.query<SimpleUser[]>(
+  const followed_posts = followedPostsRows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    slug: row.slug,
+  }));
+
+  const [followers] = await db.query<RowDataPacket[]>(
     `SELECT u.id, u.first_name, u.last_name, u.avatar_url, u.created_at
      FROM user_followers uf
      JOIN users u ON u.id = uf.follower_id
@@ -59,6 +73,7 @@ export async function getUserWithDetails({ email, providerId }: Params): Promise
 
   return {
     id: user.id,
+    password: user.password, // ✅ required for FullUserData
     first_name: user.first_name,
     last_name: user.last_name,
     email: user.email,
@@ -72,10 +87,13 @@ export async function getUserWithDetails({ email, providerId }: Params): Promise
     created_at: user.created_at,
     website: user.website,
     about_me: user.about_me,
+    slug: user.slug,
+    avatar_alt: user.avatar_alt,
+    avatar_title: user.avatar_title,
     posts,
-    comments,
+    comments: comments as Comment[],
     followed_posts,
-    followers,
+    followers: followers as SimpleUser[],
   };
 }
 
@@ -88,13 +106,11 @@ export async function getAllUsers(): Promise<SimpleUser[]> {
     ORDER BY created_at DESC
     `
   );
-  console.log('[getAllUsers] rows:', rows); // ✅ good for debugging
   return rows as SimpleUser[];
 }
 
-// This function gets user by their slug (first_name + last_name)
 export async function getUserBySlug(slug: string): Promise<FullUserData | null> {
-  const [firstName, lastName] = slug.trim().split(' ');
+  const [firstName, lastName] = slug.trim().split('-');
 
   const [[user]] = await db.query<RowDataPacket[]>(
     `SELECT * FROM users WHERE first_name = ? AND last_name = ? AND status = 'approved' LIMIT 1`,
@@ -103,15 +119,23 @@ export async function getUserBySlug(slug: string): Promise<FullUserData | null> 
 
   if (!user) return null;
 
-  const [posts] = await db.query<PostSummary[]>(
-    `SELECT id, slug, title, status
+  const [postRows] = await db.query<RowDataPacket[]>(
+    `SELECT id, slug, title, status, featured_photo
      FROM posts
      WHERE user_id = ?
      ORDER BY created_at DESC`,
     [user.id]
   );
 
-  const [comments] = await db.query<Comment[]>(
+  const posts = postRows.map((row) => ({
+    id: row.id,
+    slug: row.slug,
+    title: row.title,
+    status: row.status,
+    featured_photo: row.featured_photo,
+  }));
+
+  const [comments] = await db.query<RowDataPacket[]>(
     `SELECT id, name, email, message, created_at
      FROM comments
      WHERE user_id = ?
@@ -119,7 +143,7 @@ export async function getUserBySlug(slug: string): Promise<FullUserData | null> 
     [user.id]
   );
 
-  const [followed_posts] = await db.query<PostSummary[]>(
+  const [followedPostsRows] = await db.query<RowDataPacket[]>(
     `SELECT p.id, p.title, p.slug
      FROM followed_posts fp
      JOIN posts p ON p.id = fp.post_id
@@ -128,7 +152,13 @@ export async function getUserBySlug(slug: string): Promise<FullUserData | null> 
     [user.id]
   );
 
-  const [followers] = await db.query<SimpleUser[]>(
+  const followed_posts = followedPostsRows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    slug: row.slug,
+  }));
+
+  const [followers] = await db.query<RowDataPacket[]>(
     `SELECT u.id, u.first_name, u.last_name, u.avatar_url, u.created_at
      FROM user_followers uf
      JOIN users u ON u.id = uf.follower_id
@@ -138,6 +168,7 @@ export async function getUserBySlug(slug: string): Promise<FullUserData | null> 
 
   return {
     id: user.id,
+    password: user.password, // ✅ required for FullUserData
     first_name: user.first_name,
     last_name: user.last_name,
     email: user.email,
@@ -151,11 +182,12 @@ export async function getUserBySlug(slug: string): Promise<FullUserData | null> 
     created_at: user.created_at,
     website: user.website,
     about_me: user.about_me,
+    slug: user.slug,
+    avatar_alt: user.avatar_alt,
+    avatar_title: user.avatar_title,
     posts,
-    comments,
+    comments: comments as Comment[],
     followed_posts,
-    followers,
+    followers: followers as SimpleUser[],
   };
 }
-
-

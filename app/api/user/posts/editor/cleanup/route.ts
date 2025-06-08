@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs/promises';
 import path from 'path';
+import fs from 'fs/promises';
 
-// Extract image URLs from HTML content
+import { auth } from '@/app/lib/auth';
+
+const FALLBACK_PHOTO = '/uploads/posts/default.jpg';
+const UPLOAD_DIR = path.join(process.cwd(), 'public/uploads/posts');
+
+// Extract image srcs from HTML content
 function extractImageUrls(html: string): Set<string> {
   const regex = /<img[^>]+src="([^">]+)"/g;
   const urls = new Set<string>();
@@ -18,26 +23,37 @@ function extractImageUrls(html: string): Set<string> {
 
 export async function POST(req: NextRequest) {
   try {
-    const { content, featured } = await req.json();
+    // ✅ Authenticate user
+    const session = await auth();
+    if (!session || session.user.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // ✅ Parse JSON body
+    const { content, featured }: { content: string; featured?: string } = await req.json();
 
     const usedImages = extractImageUrls(content);
-    if (featured && featured.startsWith('/uploads/posts/')) {
+    if (featured && featured.startsWith('/uploads/posts/') && featured !== FALLBACK_PHOTO) {
       usedImages.add(featured);
     }
 
-    const uploadDir = path.join(process.cwd(), 'public/uploads/posts');
-    const files = await fs.readdir(uploadDir);
-
+    // ✅ Delete all unused images
+    const files = await fs.readdir(UPLOAD_DIR);
     for (const file of files) {
       const fileUrl = `/uploads/posts/${file}`;
-      if (!usedImages.has(fileUrl) && !fileUrl.includes('default.jpg')) {
-        await fs.unlink(path.join(uploadDir, file)).catch(() => {});
+      if (!usedImages.has(fileUrl) && fileUrl !== FALLBACK_PHOTO) {
+        try {
+          await fs.unlink(path.join(UPLOAD_DIR, file));
+          console.log('🗑️ Deleted unused image:', fileUrl);
+        } catch (err) {
+          console.warn('⚠️ Failed to delete image:', fileUrl, err);
+        }
       }
     }
 
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error('🧨 Cleanup error:', err);
+    console.error('❌ Cleanup error:', err);
     return NextResponse.json({ error: 'Cleanup failed' }, { status: 500 });
   }
 }

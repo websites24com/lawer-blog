@@ -95,11 +95,14 @@ export type UserRow = {
 
 // ✅ User + relationships (for dashboards/profiles)
 export type FullUserData = UserRow & {
-  posts: {
-    id: number;
-    title: string;
-    status: 'pending' | 'approved' | 'declined' | 'draft';
-  }[];
+posts: {
+  id: number;
+  slug: string;
+  title: string;
+  status: 'pending' | 'approved' | 'declined' | 'draft';
+  featured_photo: string | null;
+}[];
+
   comments: Comment[];
   followed_posts: {
     id: number;

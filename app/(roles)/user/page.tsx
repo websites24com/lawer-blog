@@ -185,7 +185,17 @@ const handleUnfollow = async (postId: number) => {
             paddingBottom: '1rem',
             borderBottom: '1px solid #ccc',
           }}
-        >
+        >{/* ✅ Show featured photo */}
+  <div style={{ maxWidth: '300px', marginBottom: '0.5rem' }}>
+    <ImageWithFallback
+      src={post.featured_photo || '/uploads/posts/default.jpg'}
+      alt={post.title}
+      className="fallback-image"
+      wrapperClassName="image-wrapper"
+      imageType="post"
+    />
+  </div>
+          
           <strong>{post.title}</strong> ({post.status})
 
           <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>

@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useRef, useTransition } from 'react';
+import { useState, useRef, useTransition, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
+import { Icon } from '@iconify/react';
 
 import ImageWithFallback from '@/app/components/ImageWithFallback';
 import RichTextEditor from '@/app/components/RichTextEditor';
@@ -10,6 +11,8 @@ import ImageCropModal from '@/app/components/ImageCropModal';
 import ActionButton from '@/app/components/ActionButton';
 
 import type { PostWithDetails, Category } from '@/app/lib/definitions';
+
+let previewWindow: Window | null = null;
 
 type Props = {
   post: PostWithDetails;
@@ -21,24 +24,96 @@ export default function EditPostForm({ post, categories }: Props) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  // Main form state
   const [form, setForm] = useState({
     title: post.title,
     excerpt: post.excerpt,
     content: post.content,
-    category_id: post.category_id.toString(),
+    category_id: post.category_id?.toString() || '',
     featured_photo: post.featured_photo || '/uploads/posts/default.jpg',
   });
 
+  // UI State
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [showCropper, setShowCropper] = useState(false);
+  const [titleCount, setTitleCount] = useState(post.title.length);
+  const [excerptCount, setExcerptCount] = useState(post.excerpt.length);
+  const [contentCount, setContentCount] = useState(post.content.length);
+  const [isPreviewReady, setIsPreviewReady] = useState(false);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+  // Live Preview sync
+  const sendPreviewData = (customForm?: typeof form) => {
+    if (previewWindow && !previewWindow.closed) {
+      previewWindow.postMessage(
+        {
+          type: 'preview-data',
+          payload: {
+            ...(customForm || form),
+            user: {
+              first_name: 'User',
+              last_name: 'Preview',
+              avatar_url: '/uploads/avatars/default.jpg',
+            },
+            comments: [],
+            followed_by_current_user: false,
+            id: post.id,
+            slug: post.slug,
+            created_at: post.created_at,
+            updated_at: new Date().toISOString(),
+          },
+        },
+        window.location.origin
+      );
+    }
+  };
+
+  const openLivePreview = () => {
+    if (!previewWindow || previewWindow.closed) {
+      previewWindow = window.open('/blog/posts/preview', 'livePreview', 'width=1024,height=800');
+    } else {
+      sendPreviewData();
+    }
+  };
+
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.origin === window.location.origin && event.data?.type === 'ready-for-preview') {
+        setIsPreviewReady(true);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
+
+  useEffect(() => {
+    if (isPreviewReady) {
+      sendPreviewData();
+    }
+  }, [form, isPreviewReady]);
+
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+  ) => {
     const { name, value } = e.target;
-    setForm(prev => ({ ...prev, [name]: value }));
+
+    setForm((prev) => {
+      const updated = { ...prev, [name]: value };
+      sendPreviewData(updated);
+      return updated;
+    });
+
+    if (name === 'title') setTitleCount(value.length);
+    if (name === 'excerpt') setExcerptCount(value.length);
   };
 
   const handleContentChange = (value: string) => {
-    setForm(prev => ({ ...prev, content: value }));
+    setForm((prev) => {
+      const updated = { ...prev, content: value };
+      sendPreviewData(updated);
+      return updated;
+    });
+    setContentCount(value.length);
   };
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -60,12 +135,17 @@ export default function EditPostForm({ post, categories }: Props) {
 
       if (res.ok) {
         toast.success('Photo deleted');
-        setForm(prev => ({ ...prev, featured_photo: '/uploads/posts/default.jpg' }));
+        setForm((prev) => {
+          const updated = { ...prev, featured_photo: '/uploads/posts/default.jpg' };
+          sendPreviewData(updated);
+          return updated;
+        });
         if (fileInputRef.current) fileInputRef.current.value = '';
       } else {
         toast.error('Delete failed');
       }
     } catch (err) {
+      console.error('Update failed:', err);
       toast.error('Server error');
     }
   };
@@ -84,22 +164,14 @@ export default function EditPostForm({ post, categories }: Props) {
         formData.append('old_photo', post.featured_photo || '/uploads/posts/default.jpg');
         if (photoFile) formData.append('featured_photo', photoFile);
 
+        if (previewWindow && !previewWindow.closed) previewWindow.close();
+
         const res = await fetch(`/api/user/posts/edit/${post.slug}`, {
           method: 'POST',
           body: formData,
         });
 
         if (!res.ok) throw new Error();
-
-        // ✅ CLEANUP AFTER SUCCESSFUL EDIT
-        await fetch('/api/user/posts/editor/cleanup', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            content: form.content,
-            featured: form.featured_photo,
-          }),
-        });
 
         toast.success('Post updated');
         router.refresh();
@@ -111,48 +183,76 @@ export default function EditPostForm({ post, categories }: Props) {
   };
 
   return (
-    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+    <form
+      onSubmit={handleSubmit}
+      style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
+    >
+      <label htmlFor="title">Title:</label>
       <input
+        id="title"
         name="title"
         value={form.title}
         onChange={handleChange}
-        placeholder="Title"
+        placeholder="SEO-friendly title (max 70 characters)"
         maxLength={70}
         required
       />
+      <small style={{ alignSelf: 'flex-end' }}>{titleCount}/70</small>
+
+      <label htmlFor="excerpt">Excerpt:</label>
       <textarea
+        id="excerpt"
         name="excerpt"
         value={form.excerpt}
         onChange={handleChange}
-        placeholder="Excerpt"
+        placeholder="Short excerpt (max 300 characters)"
         maxLength={300}
         required
       />
+      <small style={{ alignSelf: 'flex-end' }}>{excerptCount}/300</small>
+
+      <label htmlFor="content">Content:</label>
       <RichTextEditor value={form.content} onChange={handleContentChange} />
+      <small style={{ alignSelf: 'flex-end' }}>{contentCount}/10000</small>
+
+      <label>Category:</label>
       <select name="category_id" value={form.category_id} onChange={handleChange}>
-        {categories.map(c => (
+        {categories.map((c) => (
           <option key={c.id} value={c.id}>
             {c.name}
           </option>
         ))}
       </select>
 
-      <ImageWithFallback
-        src={form.featured_photo}
-        alt="Featured photo"
-        imageType="bike"
-      />
+      <label>Current Photo:</label>
+      <div className="image-wrapper">
+        <ImageWithFallback
+          key={form.featured_photo}
+          src={form.featured_photo}
+          alt="Featured photo"
+          imageType="bike"
+        />
+      </div>
+
+      <div style={{ display: 'flex', gap: '0.5rem' }}>
+        <ActionButton type="button" onClick={handleDeletePhoto} title="Delete Photo" disabled={isPending}>
+          <Icon icon="twemoji:wastebasket" width="20" height="20" /> Delete
+        </ActionButton>
+        <ActionButton type="button" onClick={openLivePreview} title="Live Preview" disabled={isPending}>
+          <Icon icon="twemoji:eye" width="20" height="20" /> Preview
+        </ActionButton>
+      </div>
+
       <input
         type="file"
         accept="image/*"
         onChange={handlePhotoChange}
         ref={fileInputRef}
+        disabled={isPending}
       />
-      <ActionButton type="button" onClick={handleDeletePhoto}>
-        Delete Photo
-      </ActionButton>
-      <ActionButton type="submit" loading={isPending}>
-        Update
+
+      <ActionButton type="submit" loading={isPending} disabled={isPending} title="Update Post">
+        <Icon icon="twemoji:rocket" width="20" height="20" /> Update Post
       </ActionButton>
 
       {showCropper && photoFile && (
@@ -160,7 +260,11 @@ export default function EditPostForm({ post, categories }: Props) {
           file={photoFile}
           onClose={() => setShowCropper(false)}
           onUploadSuccess={(url) => {
-            setForm(prev => ({ ...prev, featured_photo: url }));
+            setForm((prev) => {
+              const updated = { ...prev, featured_photo: url };
+              sendPreviewData(updated);
+              return updated;
+            });
             setPhotoFile(null);
             if (fileInputRef.current) fileInputRef.current.value = '';
           }}

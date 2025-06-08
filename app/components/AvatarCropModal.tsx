@@ -4,6 +4,7 @@ import Cropper from 'react-easy-crop';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import getCroppedImg from '@/app/utils/postImages/cropImage';
+import Spinner from '@/app/components/Spinner'; // ✅ Spinner component
 
 import type { Area } from 'react-easy-crop';
 
@@ -25,10 +26,10 @@ export default function AvatarCropModal({
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
   const [isCropped, setIsCropped] = useState(false);
   const [croppedBlob, setCroppedBlob] = useState<Blob | null>(null);
+  const [isUploading, setIsUploading] = useState(false); // ✅ Prevent multiple clicks
 
   const localUrl = useRef(URL.createObjectURL(file)).current;
 
-  // Load image and auto-zoom to fit modal
   useEffect(() => {
     const img = new Image();
     img.src = localUrl;
@@ -42,12 +43,9 @@ export default function AvatarCropModal({
     };
   }, [localUrl]);
 
-  const handleCropComplete = useCallback(
-    (_: Area, croppedPixels: Area) => {
-      setCroppedAreaPixels(croppedPixels);
-    },
-    []
-  );
+  const handleCropComplete = useCallback((_: Area, croppedPixels: Area) => {
+    setCroppedAreaPixels(croppedPixels);
+  }, []);
 
   const handleCropNow = async () => {
     if (!croppedAreaPixels) {
@@ -67,11 +65,13 @@ export default function AvatarCropModal({
   };
 
   const handleUpload = async () => {
+    if (isUploading) return; // ✅ Stop if already uploading
     if (!croppedBlob) {
       toast.error('No cropped image to upload');
       return;
     }
 
+    setIsUploading(true); // ✅ Lock UI
     const formData = new FormData();
     formData.append('avatar', croppedBlob, 'avatar.webp');
 
@@ -94,6 +94,7 @@ export default function AvatarCropModal({
       if (res.ok) {
         toast.success('Avatar uploaded');
 
+        // ✅ Delete old avatar unless fallback
         if (
           currentAvatarUrl &&
           !currentAvatarUrl.includes('/uploads/avatars/default.jpg')
@@ -117,6 +118,8 @@ export default function AvatarCropModal({
     } catch (err) {
       console.error(err);
       toast.error('Upload error');
+    } finally {
+      setIsUploading(false); // ✅ Unlock UI
     }
   };
 
@@ -128,7 +131,7 @@ export default function AvatarCropModal({
             image={localUrl}
             crop={crop}
             zoom={zoom}
-            aspect={1} // square for avatar
+            aspect={1}
             onCropChange={setCrop}
             onZoomChange={setZoom}
             onCropComplete={handleCropComplete}
@@ -147,9 +150,15 @@ export default function AvatarCropModal({
         />
 
         <div className="modal-actions">
-          <button type="button" onClick={handleCropNow}>Crop</button>
-          <button type="button" onClick={handleUpload} disabled={!isCropped}>Upload</button>
-          <button type="button" onClick={onClose}>Cancel</button>
+          <button type="button" onClick={handleCropNow} disabled={isUploading}>Crop</button>
+          <button
+            type="button"
+            onClick={handleUpload}
+            disabled={!isCropped || isUploading}
+          >
+            {isUploading ? <Spinner /> : 'Upload'}
+          </button>
+          <button type="button" onClick={onClose} disabled={isUploading}>Cancel</button>
         </div>
       </div>
     </div>
