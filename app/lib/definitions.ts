@@ -27,9 +27,9 @@ export type PostSummary = {
     first_name: string;
     last_name: string;
     avatar_url: string | null;
-    slug: string; // ✅ required for author links
+    slug: string;
   };
-  status: string
+  status: string;
 };
 
 // ✅ Full post detail with content and comments
@@ -46,18 +46,20 @@ export type PostWithDetails = {
   photo_title?: string | null;
   status: 'pending' | 'approved' | 'declined' | 'draft';
   category: string | null;
-  category_id: number | null; // ✅ required in edit form
+  category_id: number | null;
   followed_by_current_user: boolean;
+  user_id: number;
   user: {
     first_name: string;
     last_name: string;
     avatar_url: string | null;
-    slug: string; // ✅ required for author links
+    slug: string;
   };
   comments: {
+    id: number;
     name: string;
     email: string;
-    message: string;
+    content: string;
     created_at: string;
   }[];
 };
@@ -67,6 +69,7 @@ export type Comment = {
   id: number;
   name: string;
   email: string;
+  content: string;
   message: string;
   created_at: string;
 };
@@ -84,30 +87,31 @@ export type UserRow = {
   role: 'USER' | 'ADMIN' | 'MODERATOR';
   status: 'active' | 'pending' | 'declined';
   provider: string | null;
-  provider_account_id: string | null;
   created_at: string;
   website?: string | null;
   about_me?: string | null;
-  slug: string; // ✅ required for profile URLs
+  slug: string;
   avatar_alt?: string | null;
   avatar_title?: string | null;
 };
 
-// ✅ User + relationships (for dashboards/profiles)
+// ✅ Full user object for profile view
 export type FullUserData = UserRow & {
-posts: {
-  id: number;
-  slug: string;
-  title: string;
-  status: 'pending' | 'approved' | 'declined' | 'draft';
-  featured_photo: string | null;
-}[];
+  posts: {
+    id: number;
+    slug: string;
+    title: string;
+    status: 'pending' | 'approved' | 'declined' | 'draft';
+    featured_photo: string | null;
+  }[];
 
   comments: Comment[];
+
   followed_posts: {
     id: number;
     title: string;
     slug: string;
   }[];
+
   followers: SimpleUser[];
 };

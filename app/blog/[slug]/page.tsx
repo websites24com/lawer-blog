@@ -1,19 +1,19 @@
 import { getPostBySlug } from '@/app/lib/posts';
 import { auth } from '@/app/lib/auth';
 import ImageWithFallback from '@/app/components/ImageWithFallback';
-import FollowButton from '@/app/components/FollowButton';
+import FollowButton from '@/app/components/FollowPostButton';
 import AuthorInfo from '@/app/components/AuthorInfo';
 import type { Metadata } from 'next';
 
 type PageProps = {
   params: {
-    slug: string;
+    slug: string; // ✅ fixed
   };
 };
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const session = await auth();
-  const userId = session?.user?.id || null;
+  const userId = session?.user?.id ?? 0; // ✅ safe default
   const post = await getPostBySlug(params.slug, userId);
 
   return {
@@ -24,20 +24,18 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function BlogPostPage({ params }: PageProps) {
   const session = await auth();
-  const userId = session?.user?.id || null;
+  const userId = session?.user?.id ?? 0; // ✅ safe default
   const post = await getPostBySlug(params.slug, userId);
 
   if (!post) return <div><h1>404 - Post Not Found</h1></div>;
 
   return (
     <main style={{ padding: '2rem', maxWidth: '900px', margin: '0 auto' }}>
-      {/* Post Title */}
       <h1>{post.title}</h1>
 
-      {/* Author Info */}
       <AuthorInfo
         user_id={post.user_id}
-        user_slug={post.user.slug} // ✅ Fix: added user_slug for correct URL
+        user_slug={post.user.slug}
         first_name={post.user.first_name}
         last_name={post.user.last_name}
         avatar_url={post.user.avatar_url}
@@ -45,36 +43,31 @@ export default async function BlogPostPage({ params }: PageProps) {
         category={post.category}
       />
 
-      {/* Follow Button */}
       <FollowButton
         postId={post.id}
         initiallyFollowing={post.followed_by_current_user}
       />
 
-      {/* Featured Image */}
       {post.featured_photo && (
         <div style={{ maxWidth: '100%', margin: '2rem 0' }}>
           <ImageWithFallback
             src={post.featured_photo}
             alt={post.photo_alt || 'Featured Image'}
             title={post.photo_title || ''}
-            imageType="bike"
+            imageType="post"
             className=""
             wrapperClassName=""
           />
         </div>
       )}
 
-      {/* Post Excerpt */}
       <p style={{ fontStyle: 'italic', color: '#444' }}>{post.excerpt}</p>
 
-      {/* Post Content */}
       <article
         dangerouslySetInnerHTML={{ __html: post.content }}
         style={{ lineHeight: '1.7', marginTop: '2rem' }}
       />
 
-      {/* Comments Section */}
       <section style={{ marginTop: '3rem' }}>
         <h2>Comments ({post.comments?.length || 0})</h2>
 

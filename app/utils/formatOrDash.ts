@@ -1,2 +1,5 @@
-export const formatOrDash = (val: unknown): string =>
-  typeof val === 'string' && val.trim() ? val : '—';
+export const formatOrDash = (val: unknown): string => {
+  if (typeof val === 'number') return val.toString();
+  if (typeof val === 'string' && val.trim()) return val;
+  return '—';
+};

@@ -1,68 +1,85 @@
-'use server'; // ✅ Declares that this route runs on the server side (Next.js 13+ App Router)
+'use server';
 
-import { NextRequest, NextResponse } from 'next/server'; // ✅ Import Next.js request/response types for route handling
-import { auth } from '@/app/lib/auth'; // ✅ Custom auth utility to get current user session
-import { db } from '@/app/lib/db'; // ✅ Custom MySQL database connection pool
+import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@/app/lib/auth';
+import { db } from '@/app/lib/db';
+import { z } from 'zod';
 
-import { v4 as uuidv4 } from 'uuid'; // ✅ For generating a unique filename for uploaded images
-import path from 'path'; // ✅ Node.js module to handle filesystem paths
-import fs from 'fs/promises'; // ✅ Promise-based filesystem module for reading/writing/deleting files
-import sharp from 'sharp'; // ✅ Image processing library to resize and convert images
+import { v4 as uuidv4 } from 'uuid';
+import path from 'path';
+import fs from 'fs/promises';
+import sharp from 'sharp';
 
-// ✅ Default fallback photo path if user has no uploaded photo
 const FALLBACK_PHOTO = '/uploads/posts/default.jpg';
-
-// ✅ Absolute server-side path to the post image upload directory
 const UPLOAD_DIR = path.join(process.cwd(), 'public/uploads/posts');
 
-// ✅ Main handler function for POST requests to update a blog post by its slug
+// ✅ Zod schema to validate form fields
+const PostUpdateSchema = z.object({
+  title: z.string().min(1, 'Title is required'),
+  excerpt: z.string().optional(),
+  content: z.string().min(1, 'Content is required'),
+  category_id: z.coerce.number().min(1),
+  featured_photo_url: z.string().min(0), // ✅ Accepts relative or empty
+  old_photo: z.string().optional(),
+});
+
 export async function POST(req: NextRequest, { params }: { params: { slug: string } }) {
-  const session = await auth(); // ✅ Get currently logged-in user
+  const session = await auth();
   if (!session?.user?.id) {
-    // ❌ Return 401 if user is not authenticated
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {
-    // ✅ Parse multipart form data sent from the edit form
     const formData = await req.formData();
 
-    // ✅ Extract fields from the form and ensure they are properly formatted
-    const title = formData.get('title')?.toString().trim() || '';
-    const excerpt = formData.get('excerpt')?.toString().trim() || '';
-    const content = formData.get('content')?.toString().trim() || '';
-    const category_id = Number(formData.get('category_id')) || 1;
+    // ✅ Extract all non-file fields into raw object
+    const raw = {
+      title: formData.get('title')?.toString() || '',
+      excerpt: formData.get('excerpt')?.toString() || '',
+      content: formData.get('content')?.toString() || '',
+      category_id: formData.get('category_id')?.toString() || '',
+      featured_photo_url: formData.get('featured_photo_url')?.toString() || '',
+      old_photo: formData.get('old_photo')?.toString() || '',
+    };
 
-    // ✅ Get the current photo and a possibly updated URL
-    const oldPhoto = formData.get('old_photo')?.toString() || '';
-    const newPhotoUrl = formData.get('featured_photo_url')?.toString() || FALLBACK_PHOTO;
+    console.log('📥 Incoming raw form fields:', raw);
 
-    // ✅ Get newly uploaded file from form if exists
-    const file = formData.get('featured_photo') as File | null;
-
-    // ✅ Initialize final photo path to the current one (could be fallback or same as before)
-    let finalPhoto = newPhotoUrl;
-
-    // ✅ If a new image file was uploaded, generate a unique filename and save it
-    if (file && file.size > 0) {
-      const buffer = Buffer.from(await file.arrayBuffer()); // Convert uploaded file to buffer
-      const newFilename = `${uuidv4()}.webp`; // Create a unique filename
-      const finalPath = path.join(UPLOAD_DIR, newFilename); // Full absolute path on disk
-
-      await fs.mkdir(UPLOAD_DIR, { recursive: true }); // Ensure upload directory exists
-      await sharp(buffer).resize(1200).webp().toFile(finalPath); // Resize and save .webp version
-
-      finalPhoto = `/uploads/posts/${newFilename}`; // Update final photo URL to new image
+    // ✅ Validate the fields using Zod
+    const result = PostUpdateSchema.safeParse(raw);
+    if (!result.success) {
+      console.log('❌ Validation failed:', result.error.issues);
+      return NextResponse.json({ error: 'Validation failed', issues: result.error.issues }, { status: 400 });
     }
 
-    // ✅ If old photo is different from the new one and is not the fallback image, delete it
-    if (oldPhoto && oldPhoto !== finalPhoto && oldPhoto !== FALLBACK_PHOTO) {
-      const oldPath = path.join(process.cwd(), 'public', oldPhoto); // Convert relative path to absolute
+    // ✅ Use validated values
+    const { title, excerpt, content, category_id, featured_photo_url, old_photo } = result.data;
+
+    const file = formData.get('featured_photo') as File | null;
+    let finalPhoto = featured_photo_url || FALLBACK_PHOTO;
+
+    // ✅ Upload new file if exists
+    if (file && file.size > 0) {
+      console.log('📸 Uploading new featured photo...');
+      const buffer = Buffer.from(await file.arrayBuffer());
+      const newFilename = `${uuidv4()}.webp`;
+      const finalPath = path.join(UPLOAD_DIR, newFilename);
+
+      await fs.mkdir(UPLOAD_DIR, { recursive: true });
+      await sharp(buffer).resize(1200).webp().toFile(finalPath);
+
+      finalPhoto = `/uploads/posts/${newFilename}`;
+      console.log('✅ New photo saved at:', finalPhoto);
+    }
+
+    // ✅ Delete old photo if changed and not fallback
+    if (old_photo && old_photo !== finalPhoto && old_photo !== FALLBACK_PHOTO) {
+      const oldPath = path.join(process.cwd(), 'public', old_photo);
       try {
-        await fs.access(oldPath); // Check if the old photo file exists
-        await fs.unlink(oldPath); // Delete the old file
+        await fs.access(oldPath);
+        await fs.unlink(oldPath);
+        console.log('🗑️ Deleted old photo:', oldPath);
       } catch (err) {
-        console.warn('⚠️ Could not delete old featured photo:', err); // Warn if deletion fails
+        console.warn('⚠️ Could not delete old photo:', oldPath, err);
       }
     }
 
@@ -82,11 +99,10 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
       ]
     );
 
-    // ✅ Return a success JSON response
+    console.log('✅ Post successfully updated in database.');
     return NextResponse.json({ success: true });
   } catch (err) {
-    // ❌ Catch any unexpected errors and return 500
-    console.error('❌ Error in post update route:', err);
+    console.error('❌ Post update route error:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

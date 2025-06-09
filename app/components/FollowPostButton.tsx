@@ -11,7 +11,7 @@ type Props = {
   onToggle?: () => void;
 };
 
-export default function FollowButton({ postId, initiallyFollowing, onToggle }: Props) {
+export default function FollowPostButton({ postId, initiallyFollowing, onToggle }: Props) {
   const { status } = useSession();
   const [isFollowing, setIsFollowing] = useState(initiallyFollowing);
   const [isPending, startTransition] = useTransition();

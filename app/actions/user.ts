@@ -11,6 +11,7 @@ type UpdateUserData = {
   avatar_url?: string;
 };
 
+// ✅ Update user profile
 export async function updateUserInfo(id: number, data: UpdateUserData) {
   const {
     first_name,
@@ -26,5 +27,27 @@ export async function updateUserInfo(id: number, data: UpdateUserData) {
      SET first_name = ?, last_name = ?, email = ?, phone = ?, chat_app = ?, avatar_url = ?
      WHERE id = ?`,
     [first_name, last_name, email, phone, chat_app, avatar_url, id]
+  );
+}
+
+// ✅ Follow another user
+export async function followUser(followedId: number, followerId: number) {
+  if (!followedId || !followerId || followedId === followerId) return;
+
+  await db.query(
+    `INSERT IGNORE INTO user_followers (follower_id, followed_id)
+     VALUES (?, ?)`,
+    [followerId, followedId]
+  );
+}
+
+// ✅ Unfollow a user
+export async function unfollowUser(followedId: number, followerId: number) {
+  if (!followedId || !followerId || followedId === followerId) return;
+
+  await db.query(
+    `DELETE FROM user_followers
+     WHERE follower_id = ? AND followed_id = ?`,
+    [followerId, followedId]
   );
 }

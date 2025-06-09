@@ -61,6 +61,7 @@ export async function getAllPosts(userId: number): Promise<PostSummary[]> {
       posts.id,
       posts.slug,
       posts.title,
+      posts.status,
       LEFT(posts.content, 200) AS excerpt,
       posts.created_at,
       posts.featured_photo,
@@ -68,7 +69,7 @@ export async function getAllPosts(userId: number): Promise<PostSummary[]> {
       users.first_name,
       users.last_name,
       users.avatar_url,
-      users.slug AS user_slug, -- ✅ DODAJ
+      users.slug AS user_slug,
       EXISTS (
         SELECT 1 FROM followed_posts 
         WHERE followed_posts.user_id = ? AND followed_posts.post_id = posts.id
@@ -85,6 +86,7 @@ export async function getAllPosts(userId: number): Promise<PostSummary[]> {
     id: row.id,
     slug: row.slug,
     title: row.title,
+    status: row.status,
     excerpt: row.excerpt,
     created_at: row.created_at,
     featured_photo: row.featured_photo,
@@ -135,27 +137,37 @@ export async function getPostBySlug(slug: string, userId: number): Promise<PostW
     [post.id]
   );
 
-  return {
-    id: post.id,
-    slug: post.slug,
-    title: post.title,
-    content: post.content,
-    excerpt: post.excerpt,
-    created_at: post.created_at,
-    updated_at: post.updated_at,
-    featured_photo: post.featured_photo,
-    status: post.status,
-    category: post.category,
-    category_id: post.category_id,
-    followed_by_current_user: !!post.followed_by_current_user,
-    user: {
-      first_name: post.first_name,
-      last_name: post.last_name,
-      avatar_url: post.avatar_url,
-      slug: post.user_slug, // ✅ DODAJ
-    },
-    comments,
-  };
+ return {
+  id: post.id,
+  slug: post.slug,
+  title: post.title,
+  content: post.content,
+  excerpt: post.excerpt,
+  created_at: post.created_at,
+  updated_at: post.updated_at,
+  featured_photo: post.featured_photo,
+  photo_alt: post.photo_alt || null,       // ✅ include this if available
+  photo_title: post.photo_title || null,   // ✅ include this if available
+  status: post.status,
+  category: post.category,
+  category_id: post.category_id,
+  user_id: post.user_id,                   // ✅ FIX: add this
+  followed_by_current_user: !!post.followed_by_current_user,
+  user: {
+    first_name: post.first_name,
+    last_name: post.last_name,
+    avatar_url: post.avatar_url,
+    slug: post.user_slug,
+  },
+  comments: comments.map((c) => ({
+    id: c.id,
+    name: c.name,
+    email: c.email,
+    content: c.message,                    // ✅ rename to `content` as expected by the type
+    created_at: c.created_at,
+  })),
+};
+
 }
 
 // ✅ All categories

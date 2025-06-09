@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { getAllApprovedPosts } from '@/app/lib/posts';
 import type { PostSummary } from '@/app/lib/definitions';
-import FollowButton from '@/app/components/FollowButton';
+import FollowButton from '@/app/components/FollowPostButton';
 import ImageWithFallback from '@/app/components/ImageWithFallback';
 import FancyDate from '@/app/components/FancyDate'; // ✅ Adjust path based on your folder structure
 

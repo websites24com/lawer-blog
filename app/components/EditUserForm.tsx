@@ -232,7 +232,7 @@ export default function EditUserForm({ userId }: { userId: number }) {
         </span>
       </div>
 
-      <input name="website" value={form.website} onChange={handleChange} placeholder="Website" type="url" />
+      <input name="website" value={form.website || ''} onChange={handleChange} placeholder="Website" type="url" />
       <textarea name="about_me" value={form.about_me} onChange={handleChange} placeholder="About Me" />
 
       <ActionButton type="submit" loading={isPending}>💾 Save Changes</ActionButton>

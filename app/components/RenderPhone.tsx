@@ -4,7 +4,7 @@ type Props = {
 phone: string | null | undefined;
 }
 
-export function RenderPhone ({phone} : Props){
+export default function RenderPhone ({phone} : Props){
     if (!phone) return '—';
     const formatted = phone.startsWith('+') ? phone : `+${phone}`;
     return (

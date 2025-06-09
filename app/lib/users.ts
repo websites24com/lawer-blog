@@ -1,5 +1,5 @@
 import { db } from '@/app/lib/db';
-import type { FullUserData, SimpleUser, PostSummary, Comment } from '@/app/lib/definitions';
+import type { FullUserData, SimpleUser, Comment } from '@/app/lib/definitions';
 import type { RowDataPacket } from 'mysql2';
 
 type Params = {
@@ -15,8 +15,7 @@ export async function getUserWithDetails({ email, providerId }: Params): Promise
     userQuery = 'SELECT * FROM users WHERE email = ? LIMIT 1';
     param = email;
   } else if (providerId) {
-    userQuery = 'SELECT * FROM users WHERE provider_account_id = ? LIMIT 1';
-    param = providerId;
+    return null; // no provider_account_id in DB
   }
 
   if (!userQuery || !param) return null;
@@ -73,7 +72,7 @@ export async function getUserWithDetails({ email, providerId }: Params): Promise
 
   return {
     id: user.id,
-    password: user.password, // ✅ required for FullUserData
+    password: user.password,
     first_name: user.first_name,
     last_name: user.last_name,
     email: user.email,
@@ -81,7 +80,6 @@ export async function getUserWithDetails({ email, providerId }: Params): Promise
     phone: user.phone,
     chat_app: user.chat_app,
     provider: user.provider,
-    provider_account_id: user.provider_account_id,
     role: user.role,
     status: user.status,
     created_at: user.created_at,
@@ -99,12 +97,10 @@ export async function getUserWithDetails({ email, providerId }: Params): Promise
 
 export async function getAllUsers(): Promise<SimpleUser[]> {
   const [rows] = await db.query<RowDataPacket[]>(
-    `
-    SELECT id, first_name, last_name, slug, avatar_url, created_at
-    FROM users
-    WHERE status = 'approved'
-    ORDER BY created_at DESC
-    `
+    `SELECT id, first_name, last_name, slug, avatar_url, created_at
+     FROM users
+     WHERE status = 'approved'
+     ORDER BY created_at DESC`
   );
   return rows as SimpleUser[];
 }
@@ -168,7 +164,7 @@ export async function getUserBySlug(slug: string): Promise<FullUserData | null> 
 
   return {
     id: user.id,
-    password: user.password, // ✅ required for FullUserData
+    password: user.password,
     first_name: user.first_name,
     last_name: user.last_name,
     email: user.email,
@@ -176,7 +172,6 @@ export async function getUserBySlug(slug: string): Promise<FullUserData | null> 
     phone: user.phone,
     chat_app: user.chat_app,
     provider: user.provider,
-    provider_account_id: user.provider_account_id,
     role: user.role,
     status: user.status,
     created_at: user.created_at,

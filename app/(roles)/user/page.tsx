@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 import { confirmAlert } from 'react-confirm-alert';
 import 'react-confirm-alert/src/react-confirm-alert.css';
 import ImageWithFallback from '@/app/components/ImageWithFallback';
-import FollowButton from '@/app/components/FollowButton';
+import FollowButton from '@/app/components/FollowPostButton';
 import ActionButton from '@/app/components/ActionButton';
 import Spinner from '@/app/components/Spinner';
 import FancyDate from '@/app/components/FancyDate';
@@ -20,7 +20,7 @@ import type {
 } from '@/app/lib/definitions';
 import RenderWebsite from '@/app/components/RenderWebsite';
 import TimeFromDate from '@/app/components/TimeFromDate';
-import { RenderPhone } from '@/app/components/RenderPhone';
+import RenderPhone  from '@/app/components/RenderPhone';
 import { formatOrDash } from '@/app/utils/formatOrDash';
 import RenderEmail from '@/app/components/RenderEmail';
 
@@ -153,7 +153,9 @@ const handleUnfollow = async (postId: number) => {
         <p><strong>Website:</strong> <RenderWebsite url={userData.website}/></p>
         <p><strong>About Me:</strong> {formatOrDash(userData.about_me)}</p>
         <p><strong>Provider:</strong> {formatOrDash(userData.provider)}</p>
-        <p><strong>Account ID:</strong> {formatOrDash(userData.provider_account_id)}</p>
+        <p><strong>Account ID:</strong> {userData.id}</p>
+
+
         <p><strong>Role:</strong> {formatOrDash(userData.role)}</p>
         <p><strong>Status:</strong> {formatOrDash(userData.status)}</p>
         <p><strong>Created At:</strong> <FancyDate dateString={userData.created_at} /></p>

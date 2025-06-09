@@ -3,6 +3,7 @@ import { db } from '@/app/lib/db';
 import { z } from 'zod';
 import { auth } from '@/app/lib/auth';
 
+// ✅ Zod schema for user profile update validation
 const UpdateUserSchema = z.object({
   id: z.string().min(1),
   first_name: z.string().min(1),
@@ -13,7 +14,7 @@ const UpdateUserSchema = z.object({
   avatar_url: z.string().optional().nullable(),
   avatar_alt: z.string().optional().nullable(),
   avatar_title: z.string().optional().nullable(),
-  website: z.string().url().optional().nullable(),
+  website: z.string().url().or(z.literal('')).optional().nullable(), // ✅ Allows valid URL or empty
   about_me: z.string().optional().nullable(),
 });
 
@@ -27,6 +28,7 @@ export async function POST(req: NextRequest) {
 
     const form = await req.formData();
 
+    // ✅ Extract and shape raw form data
     const raw = {
       id: form.get('id'),
       first_name: form.get('first_name'),
@@ -43,14 +45,10 @@ export async function POST(req: NextRequest) {
 
     console.log('📨 Raw form data received:', raw);
 
+    // ✅ Validate using Zod
     const parsed = UpdateUserSchema.parse(raw);
-console.log('💾 Saving phone number (parsed):', parsed.phone);
-
-    
 
     const targetUserId = Number(parsed.id);
-    console.log('💾 Saving phone number:', parsed.phone);
-
     const currentUserId = session.user.id;
     const currentUserRole = session.user.role;
 
@@ -68,6 +66,7 @@ console.log('💾 Saving phone number (parsed):', parsed.phone);
       ? `/uploads/avatars/${parsed.avatar_url}`
       : null;
 
+    // ✅ Update user in the database
     await db.query(
       `UPDATE users
        SET first_name = ?, last_name = ?, email = ?, phone = ?, chat_app = ?, avatar_url = ?, avatar_alt = ?, avatar_title = ?, website = ?, about_me = ?
@@ -81,7 +80,7 @@ console.log('💾 Saving phone number (parsed):', parsed.phone);
         safeAvatarUrl || '',
         parsed.avatar_alt || '',
         parsed.avatar_title || '',
-        parsed.website || '',
+        parsed.website || '', // ✅ Safe even if empty
         parsed.about_me || '',
         targetUserId,
       ]
