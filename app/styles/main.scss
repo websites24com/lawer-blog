@@ -5,6 +5,9 @@
 @use 'functions/colorFunctions';
 
 // =======================
+// BASE 
+// =======================
+
 
 @use 'base/reset';
 @use 'base/globals';
@@ -13,6 +16,7 @@
 @use 'base/mixins';
 @use 'base/themes';
 @use 'base/theme';
+@use 'base/colors';
 
 
 

@@ -3,6 +3,7 @@ import { auth } from '@/app/lib/auth';
 import ImageWithFallback from '@/app/components/ImageWithFallback';
 import FollowButton from '@/app/components/FollowPostButton';
 import AuthorInfo from '@/app/components/AuthorInfo';
+
 import type { Metadata } from 'next';
 
 type PageProps = {

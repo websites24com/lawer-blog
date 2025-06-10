@@ -44,6 +44,7 @@ export async function getAllApprovedPosts(userId?: number): Promise<PostSummary[
     featured_photo: row.featured_photo,
     category: row.category,
     followed_by_current_user: !!row.followed_by_current_user,
+    status: 'approved', // ✅ explicitly set to fix type error
     user: {
       first_name: row.first_name,
       last_name: row.last_name,

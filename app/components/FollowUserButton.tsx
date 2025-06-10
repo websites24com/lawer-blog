@@ -1,36 +1,48 @@
+// File: app/components/FollowUserButton.tsx
+
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useEffect, useTransition } from 'react';
 import { useSession } from 'next-auth/react';
-import ActionButton from './ActionButton';
-import { followUser, unfollowUser } from '@/app/actions/user';
+import { followUser, unfollowUser } from '@/app/actions/user'; // ✅ server actions
+import ActionButton from './ActionButton'; // ✅ Reusable button component
 
 type Props = {
-  userId: number; // ID of the user you want to follow/unfollow
-  initiallyFollowing: boolean;
-  onToggle?: () => void;
+  followedId: number;           // ID of the user to follow/unfollow
+  initiallyFollowing: boolean; // Whether the current user is already following this user
+  onFollow?: () => void;
+  onUnfollow?: () => void;
 };
 
-export default function FollowUserButton({ userId, initiallyFollowing, onToggle }: Props) {
-  const { status } = useSession();
-  const [isFollowing, setIsFollowing] = useState(initiallyFollowing);
-  const [isPending, startTransition] = useTransition();
+export default function FollowUserButton({ followedId, initiallyFollowing }: Props) {
+  const { data: session, status } = useSession(); // ✅ Get current user session
+  const [isFollowing, setIsFollowing] = useState(initiallyFollowing); // ✅ Local UI state
+  const [isPending, startTransition] = useTransition(); // ✅ React 18 transition state
+
+  // ✅ Ensure state sync if initiallyFollowing changes (e.g. after soft navigation)
+  useEffect(() => {
+    setIsFollowing(initiallyFollowing);
+  }, [initiallyFollowing]);
 
   const toggleFollow = () => {
-    if (status !== 'authenticated') return;
+    if (status !== 'authenticated' || !session?.user?.id) return;
 
     startTransition(async () => {
       try {
         if (isFollowing) {
-          await unfollowUser(userId);
+          // ✅ Call server action to unfollow user
+          await unfollowUser(followedId, session.user.id);
         } else {
-          await followUser(userId);
+          // ✅ Call server action to follow user
+          await followUser(followedId, session.user.id);
         }
 
+        // ✅ Update local UI state instantly
         setIsFollowing(!isFollowing);
-        if (onToggle) onToggle(); // Optional callback to refresh UI
+
+        // ❗Note: Server revalidation is handled in backend or can be triggered with router.refresh() if needed
       } catch (err) {
-        console.error('❌ Failed to follow/unfollow user:', err);
+        console.error('❌ Follow/unfollow failed:', err);
       }
     });
   };
@@ -38,11 +50,11 @@ export default function FollowUserButton({ userId, initiallyFollowing, onToggle 
   return (
     <ActionButton
       onClick={toggleFollow}
-      loading={isPending}
-      active={isFollowing}
+      loading={isPending} // ✅ Show spinner if action is pending
+      active={isFollowing} // ✅ Highlight button if currently following
       title={isFollowing ? 'Unfollow this user' : 'Follow this user'}
     >
-      {isFollowing ? '👥 Unfollow' : '➕ Follow'}
+      {isFollowing ? '★ Unfollow' : '☆ Follow'}
     </ActionButton>
   );
 }

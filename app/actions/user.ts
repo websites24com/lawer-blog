@@ -1,6 +1,9 @@
+// File: app/actions/user.ts
+
 'use server';
 
 import { db } from '@/app/lib/db';
+import { revalidatePath } from 'next/cache';
 
 type UpdateUserData = {
   first_name: string;
@@ -30,7 +33,7 @@ export async function updateUserInfo(id: number, data: UpdateUserData) {
   );
 }
 
-// ✅ Follow another user
+// ✅ Follow another user and revalidate followed user's page
 export async function followUser(followedId: number, followerId: number) {
   if (!followedId || !followerId || followedId === followerId) return;
 
@@ -39,9 +42,11 @@ export async function followUser(followedId: number, followerId: number) {
      VALUES (?, ?)`,
     [followerId, followedId]
   );
+
+  revalidatePath(`/users/${followedId}`);
 }
 
-// ✅ Unfollow a user
+// ✅ Unfollow a user and revalidate followed user's page
 export async function unfollowUser(followedId: number, followerId: number) {
   if (!followedId || !followerId || followedId === followerId) return;
 
@@ -50,4 +55,6 @@ export async function unfollowUser(followedId: number, followerId: number) {
      WHERE follower_id = ? AND followed_id = ?`,
     [followerId, followedId]
   );
+
+  revalidatePath(`/users/${followedId}`);
 }

@@ -11,6 +11,7 @@ export type SimpleUser = {
   last_name: string;
   avatar_url: string | null;
   created_at: string;
+  slug: string;
 };
 
 // ✅ Summary of a post, shown in lists/dashboards

@@ -1,16 +1,20 @@
-import Link from 'next/link';
+import { auth } from '@/app/lib/auth';
 import { getAllApprovedPosts } from '@/app/lib/posts';
 import type { PostSummary } from '@/app/lib/definitions';
 import FollowButton from '@/app/components/FollowPostButton';
 import ImageWithFallback from '@/app/components/ImageWithFallback';
-import FancyDate from '@/app/components/FancyDate'; // ✅ Adjust path based on your folder structure
+import FancyDate from '@/app/components/FancyDate';
+import Link from 'next/link';
 
 function stripHtml(html: string): string {
   return html.replace(/<[^>]*>?/gm, '');
 }
 
 export default async function BlogPage() {
-  const posts: PostSummary[] = await getAllApprovedPosts();
+  const session = await auth(); // ✅ Get session
+  const userId = session?.user?.id || 0; // ✅ Extract user ID
+
+  const posts: PostSummary[] = await getAllApprovedPosts(userId); // ✅ Pass userId
 
   return (
     <main>
@@ -27,7 +31,7 @@ export default async function BlogPage() {
                   <div
                     style={{
                       width: '100%',
-                      maxWidth: '400px',
+                      maxWidth: '300px',
                       height: '200px',
                       position: 'relative',
                       marginTop: '1rem',
@@ -36,7 +40,7 @@ export default async function BlogPage() {
                     <ImageWithFallback
                       src={post.featured_photo}
                       alt="Featured Post"
-                      imageType="bike"
+                      imageType="post"
                       className=""
                       wrapperClassName=""
                     />
@@ -54,6 +58,7 @@ export default async function BlogPage() {
               {post.user.first_name} {post.user.last_name}
             </p>
 
+            {/* ✅ Pass ID and follow state */}
             <FollowButton
               postId={post.id}
               initiallyFollowing={post.followed_by_current_user}

@@ -105,7 +105,11 @@ export async function getAllUsers(): Promise<SimpleUser[]> {
   return rows as SimpleUser[];
 }
 
-export async function getUserBySlug(slug: string): Promise<FullUserData | null> {
+// File: app/lib/users.ts
+export async function getUserBySlug(
+  slug: string,
+  viewerId?: number // 👈 current session user ID (optional)
+): Promise<FullUserData & { is_followed: boolean } | null> {
   const [firstName, lastName] = slug.trim().split('-');
 
   const [[user]] = await db.query<RowDataPacket[]>(
@@ -114,6 +118,16 @@ export async function getUserBySlug(slug: string): Promise<FullUserData | null> 
   );
 
   if (!user) return null;
+
+  // ✅ Check if viewer follows this user
+  let is_followed = false;
+  if (viewerId) {
+    const [[row]] = await db.query<RowDataPacket[]>(
+      `SELECT 1 FROM user_followers WHERE follower_id = ? AND followed_id = ? LIMIT 1`,
+      [viewerId, user.id]
+    );
+    is_followed = !!row;
+  }
 
   const [postRows] = await db.query<RowDataPacket[]>(
     `SELECT id, slug, title, status, featured_photo
@@ -184,5 +198,7 @@ export async function getUserBySlug(slug: string): Promise<FullUserData | null> 
     comments: comments as Comment[],
     followed_posts,
     followers: followers as SimpleUser[],
+    is_followed, // ✅ NEW FIELD
   };
 }
+

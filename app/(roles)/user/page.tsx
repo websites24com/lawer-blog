@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 import { confirmAlert } from 'react-confirm-alert';
 import 'react-confirm-alert/src/react-confirm-alert.css';
 import ImageWithFallback from '@/app/components/ImageWithFallback';
-import FollowButton from '@/app/components/FollowPostButton';
+import FollowPostButton from '@/app/components/FollowPostButton';
 import ActionButton from '@/app/components/ActionButton';
 import Spinner from '@/app/components/Spinner';
 import FancyDate from '@/app/components/FancyDate';
@@ -237,10 +237,20 @@ const handleUnfollow = async (postId: number) => {
           <ul>
             {userData.followed_posts.map((post) => (
               <li key={post.id}>
+                {/* ✅ Show featured photo */}
+  <div style={{ maxWidth: '300px', marginBottom: '0.5rem' }}>
+    <ImageWithFallback
+      src={post.featured_photo || '/uploads/posts/default.jpg'}
+      alt={post.title}
+      className="fallback-image"
+      wrapperClassName="image-wrapper"
+      imageType="post"
+    />
+  </div>
                 <a href={`/blog/${post.slug}`} target="_blank" rel="noopener noreferrer">
                   {post.title}
                 </a>
-                <FollowButton
+                <FollowPostButton
                   postId={post.id}
                   initiallyFollowing={true}
                   onUnfollow={() => handleUnfollow(post.id)}
@@ -276,21 +286,31 @@ const handleUnfollow = async (postId: number) => {
 
 
       <div className="user-section">
-        <h2>👥 Followers</h2>
-        {userData.followers?.length > 0 ? (
-          <ul>
-            {userData.followers.map((follower) => (
-              <li key={follower.id}>
-                <a href={`/users/${follower.id}`}>
-                  {follower.first_name} {follower.last_name}
-                </a>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p>No followers yet.</p>
-        )}
-      </div>
+  <h2>👥 Followers</h2>
+  {userData.followers?.length > 0 ? (
+    <ul>
+      {userData.followers.map((follower) => (
+        <li key={follower.id} >
+          <div className="image-wrapper-avatar">
+            <ImageWithFallback
+              src={follower.avatar_url || '/uploads/avatars/default.jpg'} // ✅ correct follower photo
+              alt={`${follower.first_name} ${follower.last_name}`}
+              className="fallback-image-avatar"
+              wrapperClassName="image-wrapper-avatar"
+              imageType="avatar"
+            />
+          </div>
+          <a href={`/users/${follower.slug}`}>
+            {follower.first_name} {follower.last_name}
+          </a>
+        </li>
+      ))}
+    </ul>
+  ) : (
+    <p>No followers yet.</p>
+  )}
+</div>
+
       
 
       <div className="user-section" style={{ marginTop: '2rem' }}>

@@ -9,6 +9,8 @@ type Props = {
   postId: number;
   initiallyFollowing: boolean;
   onToggle?: () => void;
+  onFollow?: () => void;
+  onUnfollow?: () => void;
 };
 
 export default function FollowPostButton({ postId, initiallyFollowing, onToggle }: Props) {
