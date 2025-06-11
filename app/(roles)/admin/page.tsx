@@ -1,35 +1,29 @@
 // app/admin/page.tsx
+'use client';
 
-import { redirect } from 'next/navigation';
-import { auth } from '@/app/lib/auth';
 import Link from 'next/link';
+import WithProtectedRoute from '@/app/hooks/withProtectedRoute';
 
-export default async function AdminPage() {
-  const session = await auth();
-
-  // Only allow access if user is admin
-  if (!session || session.user?.role !== 'ADMIN') {
-    redirect('/unauthorized');
-  }
-
+export default function AdminPage() {
   return (
-    <main >
-      <h1 >Admin Dashboard</h1>
-
-      <div>
-        <div>
-          <Link
-            href="/admin/posts">
-            Manage Posts
-          </Link>
-        </div>
+    <WithProtectedRoute allowedRoles={['ADMIN']} redirectTo="/unauthorized">
+      <main>
+        <h1>Admin Dashboard</h1>
 
         <div>
-          <Link href="/admin/users">
-            Manage Users
-          </Link>
+          <div>
+            <Link href="/admin/posts">
+              Manage Posts
+            </Link>
+          </div>
+
+          <div>
+            <Link href="/admin/users">
+              Manage Users
+            </Link>
+          </div>
         </div>
-      </div>
-    </main>
+      </main>
+    </WithProtectedRoute>
   );
 }

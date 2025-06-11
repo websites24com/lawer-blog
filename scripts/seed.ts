@@ -31,7 +31,7 @@ async function seed() {
       role ENUM('USER', 'MODERATOR', 'ADMIN') DEFAULT 'USER',
       status ENUM('pending', 'approved', 'declined', 'frozen') DEFAULT 'approved',
       provider VARCHAR(50),
-      provider_account_id VARCHAR(255),
+      provider_account_id VARCHAR(255) UNIQUE,
       website VARCHAR(255),
       about_me TEXT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

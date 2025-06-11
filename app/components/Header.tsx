@@ -9,24 +9,22 @@ export default function Header() {
   const router = useRouter();
   const { data: session, status } = useSession();
 
-  const handleUserClick = () => {
-    if (status === 'loading') return;
+ const handleUserClick = () => {
+  if (status === 'loading') return;
 
-    const user = session?.user;
+  const user = session?.user;
 
-    // 🧠 Tylko jeśli sesja zawiera ważne ID i e-mail — przekieruj do /user
-    if (
-      status === 'authenticated' &&
-      user &&
-      typeof user.id === 'number' &&
-      typeof user.email === 'string'
-    ) {
-      router.push('/user');
-    } else {
-      
-      router.push('/auth');
-    }
-  };
+  // ✅ Accept numeric or string ID and allow login even if email is missing (e.g. Facebook)
+  const hasValidId = typeof user?.id === 'number' || typeof user?.id === 'string';
+  const hasEmailOrProvider = typeof user?.email === 'string' || hasValidId;
+
+  if (status === 'authenticated' && hasValidId && hasEmailOrProvider) {
+    router.push('/user');
+  } else {
+    router.push('/auth');
+  }
+};
+
 
   return (
     <header className="site-header">

@@ -7,13 +7,20 @@ export async function GET(req: NextRequest) {
     const email = searchParams.get('email') || undefined;
     const providerId = searchParams.get('providerId') || undefined;
 
+    // ✅ Add full log context for easier debugging
+    console.log('🔍 Incoming user query:', { email, providerId });
+
     if (!email && !providerId) {
-      return NextResponse.json({ error: 'Missing query parameter: email or providerId required' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Missing query parameter: email or providerId required' },
+        { status: 400 }
+      );
     }
 
     const userData = await getUserWithDetails({ email, providerId });
 
     if (!userData) {
+      console.warn('⚠️ No user found for given query');
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 

@@ -1,43 +1,61 @@
+// app/lib/users.ts
+
 import { db } from '@/app/lib/db';
-import type { FullUserData, SimpleUser, Comment } from '@/app/lib/definitions';
+import type {
+  FullUserData,
+  SimpleUser,
+  Comment,
+  PostSummary,
+} from '@/app/lib/definitions';
 import type { RowDataPacket } from 'mysql2';
 
+// ✅ Fetch user's posts (id, slug, title, status, featured_photo)
+async function getPostsByUserId(userId: number): Promise<PostSummary[]> {
+  const [rows] = await db.query<RowDataPacket[]>(
+    `SELECT id, slug, title, status, featured_photo
+     FROM posts
+     WHERE user_id = ?
+     ORDER BY created_at DESC`,
+    [userId]
+  );
+
+  return rows.map((row) => ({
+    id: row.id,
+    slug: row.slug,
+    title: row.title,
+    status: row.status,
+    featured_photo: row.featured_photo ?? null,
+  }));
+}
+
+// ✅ Main user fetcher by email or provider_account_id
 type Params = {
   email?: string;
   providerId?: string;
 };
 
-export async function getUserWithDetails({ email, providerId }: Params): Promise<FullUserData | null> {
-  let userQuery = '';
-  let param: string | undefined;
+export async function getUserWithDetails({
+  email,
+  providerId,
+}: Params): Promise<FullUserData | null> {
+  let query = '';
+  let value: string | undefined;
 
-  if (email) {
-    userQuery = 'SELECT * FROM users WHERE email = ? LIMIT 1';
-    param = email;
-  } else if (providerId) {
-    return null; // no provider_account_id in DB
+  if (providerId) {
+    query = 'SELECT * FROM users WHERE provider_account_id = ? LIMIT 1';
+    value = providerId;
+  } else if (email) {
+    query = 'SELECT * FROM users WHERE email = ? LIMIT 1';
+    value = email;
   }
 
-  if (!userQuery || !param) return null;
+  if (!query || !value) return null;
 
-  const [[user]] = await db.query<RowDataPacket[]>(userQuery, [param]);
+  const [users] = await db.query<RowDataPacket[]>(query, [value]);
+  const user = users[0];
   if (!user) return null;
 
-  const [postRows] = await db.query<RowDataPacket[]>(
-    `SELECT id, slug, title, status, featured_photo
-     FROM posts
-     WHERE user_id = ?
-     ORDER BY created_at DESC`,
-    [user.id]
-  );
-
-  const posts = postRows.map((row) => ({
-    id: row.id,
-    slug: row.slug,
-    title: row.title,
-    status: row.status,
-    featured_photo: row.featured_photo,
-  }));
+  const posts = await getPostsByUserId(user.id);
 
   const [comments] = await db.query<RowDataPacket[]>(
     `SELECT id, name, email, message, created_at
@@ -47,7 +65,7 @@ export async function getUserWithDetails({ email, providerId }: Params): Promise
     [user.id]
   );
 
-  const [followedPostsRows] = await db.query<RowDataPacket[]>(
+  const [followedPosts] = await db.query<RowDataPacket[]>(
     `SELECT p.id, p.title, p.slug
      FROM followed_posts fp
      JOIN posts p ON p.id = fp.post_id
@@ -56,14 +74,8 @@ export async function getUserWithDetails({ email, providerId }: Params): Promise
     [user.id]
   );
 
-  const followed_posts = followedPostsRows.map((row) => ({
-    id: row.id,
-    title: row.title,
-    slug: row.slug,
-  }));
-
   const [followers] = await db.query<RowDataPacket[]>(
-    `SELECT u.id, u.first_name, u.last_name, u.avatar_url, u.created_at
+    `SELECT u.id, u.first_name, u.last_name, u.avatar_url, u.created_at, u.slug
      FROM user_followers uf
      JOIN users u ON u.id = uf.follower_id
      WHERE uf.followed_id = ?`,
@@ -80,6 +92,7 @@ export async function getUserWithDetails({ email, providerId }: Params): Promise
     phone: user.phone,
     chat_app: user.chat_app,
     provider: user.provider,
+    provider_account_id: user.provider_account_id,
     role: user.role,
     status: user.status,
     created_at: user.created_at,
@@ -90,11 +103,12 @@ export async function getUserWithDetails({ email, providerId }: Params): Promise
     avatar_title: user.avatar_title,
     posts,
     comments: comments as Comment[],
-    followed_posts,
+    followed_posts: followedPosts as PostSummary[],
     followers: followers as SimpleUser[],
   };
 }
 
+// ✅ Public user list with limited fields (for /users)
 export async function getAllUsers(): Promise<SimpleUser[]> {
   const [rows] = await db.query<RowDataPacket[]>(
     `SELECT id, first_name, last_name, slug, avatar_url, created_at
@@ -105,45 +119,33 @@ export async function getAllUsers(): Promise<SimpleUser[]> {
   return rows as SimpleUser[];
 }
 
-// File: app/lib/users.ts
+// ✅ Fetch full user profile by slug (e.g. /users/john-doe)
 export async function getUserBySlug(
   slug: string,
-  viewerId?: number // 👈 current session user ID (optional)
-): Promise<FullUserData & { is_followed: boolean } | null> {
+  viewerId?: number
+): Promise<(FullUserData & { is_followed: boolean }) | null> {
   const [firstName, lastName] = slug.trim().split('-');
 
-  const [[user]] = await db.query<RowDataPacket[]>(
-    `SELECT * FROM users WHERE first_name = ? AND last_name = ? AND status = 'approved' LIMIT 1`,
+  const [users] = await db.query<RowDataPacket[]>(
+    `SELECT * FROM users
+     WHERE first_name = ? AND last_name = ? AND status = 'approved'
+     LIMIT 1`,
     [firstName, lastName]
   );
-
+  const user = users[0];
   if (!user) return null;
 
-  // ✅ Check if viewer follows this user
   let is_followed = false;
   if (viewerId) {
-    const [[row]] = await db.query<RowDataPacket[]>(
-      `SELECT 1 FROM user_followers WHERE follower_id = ? AND followed_id = ? LIMIT 1`,
+    const [rows] = await db.query<RowDataPacket[]>(
+      `SELECT 1 FROM user_followers
+       WHERE follower_id = ? AND followed_id = ? LIMIT 1`,
       [viewerId, user.id]
     );
-    is_followed = !!row;
+    is_followed = rows.length > 0;
   }
 
-  const [postRows] = await db.query<RowDataPacket[]>(
-    `SELECT id, slug, title, status, featured_photo
-     FROM posts
-     WHERE user_id = ?
-     ORDER BY created_at DESC`,
-    [user.id]
-  );
-
-  const posts = postRows.map((row) => ({
-    id: row.id,
-    slug: row.slug,
-    title: row.title,
-    status: row.status,
-    featured_photo: row.featured_photo,
-  }));
+  const posts = await getPostsByUserId(user.id);
 
   const [comments] = await db.query<RowDataPacket[]>(
     `SELECT id, name, email, message, created_at
@@ -153,7 +155,7 @@ export async function getUserBySlug(
     [user.id]
   );
 
-  const [followedPostsRows] = await db.query<RowDataPacket[]>(
+  const [followedPosts] = await db.query<RowDataPacket[]>(
     `SELECT p.id, p.title, p.slug
      FROM followed_posts fp
      JOIN posts p ON p.id = fp.post_id
@@ -162,14 +164,8 @@ export async function getUserBySlug(
     [user.id]
   );
 
-  const followed_posts = followedPostsRows.map((row) => ({
-    id: row.id,
-    title: row.title,
-    slug: row.slug,
-  }));
-
   const [followers] = await db.query<RowDataPacket[]>(
-    `SELECT u.id, u.first_name, u.last_name, u.avatar_url, u.created_at
+    `SELECT u.id, u.first_name, u.last_name, u.avatar_url, u.created_at, u.slug
      FROM user_followers uf
      JOIN users u ON u.id = uf.follower_id
      WHERE uf.followed_id = ?`,
@@ -186,6 +182,7 @@ export async function getUserBySlug(
     phone: user.phone,
     chat_app: user.chat_app,
     provider: user.provider,
+    provider_account_id: user.provider_account_id,
     role: user.role,
     status: user.status,
     created_at: user.created_at,
@@ -196,9 +193,8 @@ export async function getUserBySlug(
     avatar_title: user.avatar_title,
     posts,
     comments: comments as Comment[],
-    followed_posts,
+    followed_posts: followedPosts as PostSummary[],
     followers: followers as SimpleUser[],
-    is_followed, // ✅ NEW FIELD
+    is_followed,
   };
 }
-

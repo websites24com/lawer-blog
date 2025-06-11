@@ -1,118 +1,75 @@
-// ✅ Category used for post classification
-export type Category = {
+export type UserRow = {
   id: number;
-  name: string;
+  first_name: string;
+  last_name: string;
+  slug: string;
+  email: string | null;
+  password: string | null;
+  phone: string | null;
+  chat_app: 'WhatsApp' | 'Telegram' | 'Signal' | 'None';
+  avatar_url: string | null;
+  avatar_alt: string | null;
+  avatar_title: string | null;
+  role: 'USER' | 'MODERATOR' | 'ADMIN';
+  status: 'pending' | 'approved' | 'declined' | 'frozen';
+  provider: string | null;
+  provider_account_id: string | null;
+  website: string | null;
+  about_me: string | null;
+  created_at: string;
 };
 
-// ✅ Lightweight user for follow lists
 export type SimpleUser = {
   id: number;
   first_name: string;
   last_name: string;
-  avatar_url: string | null;
-  created_at: string;
   slug: string;
+  avatar_url: string | null;
 };
 
-// ✅ Summary of a post, shown in lists/dashboards
 export type PostSummary = {
   id: number;
   slug: string;
   title: string;
-  excerpt: string;
-  created_at: string;
-  category: string | null;
-  featured_photo: string | null;
-  followed_by_current_user: boolean;
-  user: {
-    first_name: string;
-    last_name: string;
-    avatar_url: string | null;
-    slug: string;
-  };
   status: string;
+  featured_photo: string | null;
 };
 
-// ✅ Full post detail with content and comments
+export type Comment = {
+  id: number;
+  post_id: number;
+  user_id: number | null;
+  name: string;
+  email: string | null;
+  message: string;
+  created_at: string;
+};
+
+export type FullUserData = UserRow & {
+  posts: PostSummary[];
+  comments: Comment[];
+  followed_posts: PostSummary[];
+  followers: SimpleUser[];
+};
+
+export type Category = {
+  id: number;
+  name: string;
+  slug: string;
+};
+
 export type PostWithDetails = {
   id: number;
   slug: string;
   title: string;
   excerpt: string;
   content: string;
+  featured_photo: string | null;
+  photo_alt: string | null;
+  photo_title: string | null;
+  status: 'pending' | 'approved' | 'draft' | 'declined';
+  user_id: number | null;
+  category_id: number | null;
   created_at: string;
   updated_at: string;
-  featured_photo: string | null;
-  photo_alt?: string | null;
-  photo_title?: string | null;
-  status: 'pending' | 'approved' | 'declined' | 'draft';
-  category: string | null;
-  category_id: number | null;
-  followed_by_current_user: boolean;
-  user_id: number;
-  user: {
-    first_name: string;
-    last_name: string;
-    avatar_url: string | null;
-    slug: string;
-  };
-  comments: {
-    id: number;
-    name: string;
-    email: string;
-    content: string;
-    created_at: string;
-  }[];
-};
-
-// ✅ Comment structure
-export type Comment = {
-  id: number;
-  name: string;
-  email: string;
-  content: string;
-  message: string;
-  created_at: string;
-};
-
-// ✅ User table (MySQL structure)
-export type UserRow = {
-  id: number;
-  first_name: string;
-  last_name: string;
-  email: string;
-  password: string | null;
-  phone: string | null;
-  chat_app: string | null;
-  avatar_url: string | null;
-  role: 'USER' | 'ADMIN' | 'MODERATOR';
-  status: 'active' | 'pending' | 'declined';
-  provider: string | null;
-  created_at: string;
-  website?: string | null;
-  about_me?: string | null;
-  slug: string;
-  avatar_alt?: string | null;
-  avatar_title?: string | null;
-};
-
-// ✅ Full user object for profile view
-export type FullUserData = UserRow & {
-  posts: {
-    id: number;
-    slug: string;
-    title: string;
-    status: 'pending' | 'approved' | 'declined' | 'draft';
-    featured_photo: string | null;
-  }[];
-
-  comments: Comment[];
-
-  followed_posts: {
-    id: number;
-    title: string;
-    slug: string;
-  }[];
-
-  followers: SimpleUser[];
 };

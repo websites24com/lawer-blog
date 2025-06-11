@@ -1,14 +1,17 @@
-// app/api/avatar/cleanup-unused/route.ts
 import { readdir, unlink } from 'fs/promises';
 import path from 'path';
 import { db } from '@/app/lib/db';
+import { requireAuth } from '@/app/lib/auth-utils';
+import { ROLES } from '@/app/lib/roles'; // ✅ reuse ROLES constants
 
 export async function POST() {
   try {
+    // ✅ Auth + Role check
+    await requireAuth({ roles: [ROLES.ADMIN] });
+
     const avatarsDir = path.join(process.cwd(), 'public', 'uploads', 'avatars');
     const files = await readdir(avatarsDir);
 
-    // Get list of avatar filenames used in database (without full path)
     const [rows] = await db.query('SELECT avatar_url FROM users');
     const usedFiles = new Set(
       (rows as any[])
@@ -26,8 +29,8 @@ export async function POST() {
     }
 
     return Response.json({ deleted });
-  } catch (err) {
-    console.error('❌ Failed to clean avatars:', err);
-    return Response.json({ error: 'Failed to clean up avatars' }, { status: 500 });
+  } catch (err: any) {
+    console.error('❌ Avatar cleanup error:', err.message);
+    return Response.json({ error: err.message || 'Failed to clean avatars' }, { status: 403 });
   }
 }

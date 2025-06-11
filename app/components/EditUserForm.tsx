@@ -57,7 +57,7 @@ export default function EditUserForm({ userId }: { userId: number }) {
             avatar_alt: data.avatar_alt || '',
             avatar_title: data.avatar_title || '',
           });
-          console.log('📥 Loaded phone:', data.phone);
+          // console.log('📥 Loaded phone:', data.phone);
           setPreviewUrl(data.avatar_url || '');
           setLoading(false);
         })
@@ -84,7 +84,7 @@ export default function EditUserForm({ userId }: { userId: number }) {
   };
 
   const handlePhoneChange = (value: string) => {
-    console.log('📞 handlePhoneChange value:', value);
+    // console.log('📞 handlePhoneChange value:', value);
     setForm((prev) => ({ ...prev, phone: value }));
   };
 
@@ -144,9 +144,9 @@ export default function EditUserForm({ userId }: { userId: number }) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    console.log('🚀 handleSubmit started');
-    console.log('📞 form.phone (before submit):', form.phone);
-    console.log('📦 Sending form:', form);
+    // console.log('🚀 handleSubmit started');
+    // console.log('📞 form.phone (before submit):', form.phone);
+    // console.log('📦 Sending form:', form);
 
     startTransition(async () => {
       try {
@@ -172,10 +172,8 @@ export default function EditUserForm({ userId }: { userId: number }) {
           throw new Error('❌ Failed to save user');
         }
 
-        await fetch('/api/avatar/cleanup-unused', { method: 'POST' });
-
-        toast.success('Profile updated — redirecting in 5s...');
-        setCountdown(4);
+        toast.success('Profile updated — redirecting in 3s...');
+        setCountdown(2);
       } catch (err) {
         toast.error('Failed to update profile');
         console.error(err);
