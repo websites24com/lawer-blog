@@ -20,6 +20,7 @@ export default function EditUserForm({ userId }: { userId: number }) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  // 🧠 Form state initialization
   const [form, setForm] = useState({
     first_name: '',
     last_name: '',
@@ -40,33 +41,44 @@ export default function EditUserForm({ userId }: { userId: number }) {
   const [loading, setLoading] = useState(true);
   const [countdown, setCountdown] = useState(5);
 
+  // ⭐️ AMENDMENT ✅ Fallback to provider_account_id if email is missing
   useEffect(() => {
-    if (status === 'authenticated' && session?.user?.email) {
-      fetch(`/api/user?email=${session.user.email}`)
-        .then((res) => res.json())
-        .then((data) => {
-          setForm({
-            first_name: data.first_name || '',
-            last_name: data.last_name || '',
-            email: data.email || '',
-            phone: data.phone || '',
-            chat_app: data.chat_app || 'None',
-            website: data.website || '',
-            about_me: data.about_me || '',
-            avatar_url: data.avatar_url || '',
-            avatar_alt: data.avatar_alt || '',
-            avatar_title: data.avatar_title || '',
-          });
-          // console.log('📥 Loaded phone:', data.phone);
-          setPreviewUrl(data.avatar_url || '');
-          setLoading(false);
-        })
-        .catch((err) => {
-          console.error('❌ Failed to load user:', err);
-          setLoading(false);
-        });
+    if (status !== 'authenticated' || !session?.user) return;
+
+    const url = session.user.email
+      ? `/api/user?email=${session.user.email}`
+      : session.user.provider_account_id // ⭐️ ✅ fallback logic added here
+      ? `/api/user?providerId=${session.user.provider_account_id}`
+      : null;
+
+    if (!url) {
+      console.error('No identifier to fetch user');
+      return;
     }
-  }, [status, session?.user?.email]);
+
+    fetch(url)
+      .then((res) => res.json())
+      .then((data) => {
+        setForm({
+          first_name: data.first_name || '',
+          last_name: data.last_name || '',
+          email: data.email || '',
+          phone: data.phone || '',
+          chat_app: data.chat_app || 'None',
+          website: data.website || '',
+          about_me: data.about_me || '',
+          avatar_url: data.avatar_url || '',
+          avatar_alt: data.avatar_alt || '',
+          avatar_title: data.avatar_title || '',
+        });
+        setPreviewUrl(data.avatar_url || '');
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error('❌ Failed to load user:', err);
+        setLoading(false);
+      });
+  }, [status, session?.user]);
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
@@ -84,7 +96,6 @@ export default function EditUserForm({ userId }: { userId: number }) {
   };
 
   const handlePhoneChange = (value: string) => {
-    // console.log('📞 handlePhoneChange value:', value);
     setForm((prev) => ({ ...prev, phone: value }));
   };
 
@@ -130,7 +141,7 @@ export default function EditUserForm({ userId }: { userId: number }) {
         avatar_url: '/uploads/avatars/default.jpg',
         avatar_alt: '',
         avatar_title: '',
-        phone: '', // optional clear on delete
+        phone: '',
       }));
       setPreviewUrl('/uploads/avatars/default.jpg');
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -143,22 +154,12 @@ export default function EditUserForm({ userId }: { userId: number }) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    // console.log('🚀 handleSubmit started');
-    // console.log('📞 form.phone (before submit):', form.phone);
-    // console.log('📦 Sending form:', form);
-
     startTransition(async () => {
       try {
         const body = new FormData();
         body.append('id', userId.toString());
-
         Object.entries(form).forEach(([key, val]) => {
-          if (typeof val === 'string') {
-            body.append(key, val);
-          } else if (val === null || val === undefined) {
-            body.append(key, '');
-          }
+          body.append(key, val || '');
         });
 
         const res = await fetch('/api/user/edit', {
@@ -207,7 +208,6 @@ export default function EditUserForm({ userId }: { userId: number }) {
       </div>
 
       <input type="file" accept="image/*" ref={fileInputRef} onChange={handleFileChange} />
-
       <input name="first_name" value={form.first_name} onChange={handleChange} placeholder="First Name" required />
       <input name="last_name" value={form.last_name} onChange={handleChange} placeholder="Last Name" required />
       <input name="email" value={form.email} onChange={handleChange} placeholder="Email" type="email" required />
@@ -230,7 +230,7 @@ export default function EditUserForm({ userId }: { userId: number }) {
         </span>
       </div>
 
-      <input name="website" value={form.website || ''} onChange={handleChange} placeholder="Website" type="url" />
+      <input name="website" value={form.website} onChange={handleChange} placeholder="Website" type="url" />
       <textarea name="about_me" value={form.about_me} onChange={handleChange} placeholder="About Me" />
 
       <ActionButton type="submit" loading={isPending}>💾 Save Changes</ActionButton>

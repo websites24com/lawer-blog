@@ -35,7 +35,6 @@ export default function UserPage() {
   const [loading, setLoading] = useState(true);
   const [isPending, startTransition] = useTransition();
 
-  // ✅ Fetch full user data after login (Facebook: use provider_account_id)
   useEffect(() => {
     if (status === 'authenticated' && session?.user) {
       const query = session.user.email
@@ -64,8 +63,13 @@ export default function UserPage() {
     router.push('/login');
     return null;
   }
-
   if (!userData) return <p>Error loading user data.</p>;
+
+  // ✅ Ensure correct avatar display for uploads, external URLs, and fallback
+  const resolvedAvatarUrl =
+    userData.avatar_url?.startsWith('http') || userData.avatar_url?.startsWith('/uploads/avatars/')
+      ? userData.avatar_url
+      : `/uploads/avatars/${userData.avatar_url}`;
 
   const handleUnfollow = async (postId: number) => {
     startTransition(async () => {
@@ -125,7 +129,7 @@ export default function UserPage() {
       <div className="user-avatar-section">
         <div className="image-wrapper-avatar">
           <ImageWithFallback
-            src={userData.avatar_url || '/uploads/avatars/default.jpg'}
+            src={resolvedAvatarUrl || '/uploads/avatars/default.jpg'}
             alt={`${userData.first_name} ${userData.last_name}`}
             className="fallback-image-avatar"
             wrapperClassName="image-wrapper-avatar"
@@ -234,20 +238,27 @@ export default function UserPage() {
         <h2>👥 Followers</h2>
         {userData.followers?.length > 0 ? (
           <ul>
-            {userData.followers.map((follower) => (
-              <li key={follower.id}>
-                <div className="image-wrapper-avatar">
-                  <ImageWithFallback
-                    src={follower.avatar_url || '/uploads/avatars/default.jpg'}
-                    alt={`${follower.first_name} ${follower.last_name}`}
-                    className="fallback-image-avatar"
-                    wrapperClassName="image-wrapper-avatar"
-                    imageType="avatar"
-                  />
-                </div>
-                <a href={`/users/${follower.slug}`}>{follower.first_name} {follower.last_name}</a>
-              </li>
-            ))}
+            {userData.followers.map((follower) => {
+              const avatar =
+                follower.avatar_url?.startsWith('http') || follower.avatar_url?.startsWith('/uploads/avatars/')
+                  ? follower.avatar_url
+                  : `/uploads/avatars/${follower.avatar_url}`;
+
+              return (
+                <li key={follower.id}>
+                  <div className="image-wrapper-avatar">
+                    <ImageWithFallback
+                      src={avatar || '/uploads/avatars/default.jpg'}
+                      alt={`${follower.first_name} ${follower.last_name}`}
+                      className="fallback-image-avatar"
+                      wrapperClassName="image-wrapper-avatar"
+                      imageType="avatar"
+                    />
+                  </div>
+                  <a href={`/users/${follower.slug}`}>{follower.first_name} {follower.last_name}</a>
+                </li>
+              );
+            })}
           </ul>
         ) : (
           <p>No followers yet.</p>

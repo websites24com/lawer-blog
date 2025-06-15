@@ -20,15 +20,17 @@ const UpdateUserSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
+    // ✅ Check for active session
     const session = await auth();
     if (!session?.user) {
       console.log('⛔ No active session.');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // ✅ Read form data
     const form = await req.formData();
 
-    // ✅ Extract and shape raw form data
+    // ✅ Extract raw fields from form
     const raw = {
       id: form.get('id'),
       first_name: form.get('first_name'),
@@ -45,13 +47,14 @@ export async function POST(req: NextRequest) {
 
     console.log('📨 Raw form data received:', raw);
 
-    // ✅ Validate using Zod
+    // ✅ Validate with Zod
     const parsed = UpdateUserSchema.parse(raw);
 
     const targetUserId = Number(parsed.id);
     const currentUserId = session.user.id;
     const currentUserRole = session.user.role;
 
+    // ✅ Authorization
     const isSelf = currentUserId === targetUserId;
     const isPrivileged = currentUserRole === 'ADMIN' || currentUserRole === 'MODERATOR';
 
@@ -60,11 +63,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const safeAvatarUrl = parsed.avatar_url?.startsWith('/uploads/avatars/')
-      ? parsed.avatar_url
-      : parsed.avatar_url
-      ? `/uploads/avatars/${parsed.avatar_url}`
-      : null;
+    // ✅ Safe avatar URL handling — FIXED LOGIC
+    let safeAvatarUrl = parsed.avatar_url || '';
+
+    if (
+      safeAvatarUrl &&
+      !safeAvatarUrl.startsWith('/uploads/avatars/') &&
+      !safeAvatarUrl.startsWith('http://') &&
+      !safeAvatarUrl.startsWith('https://')
+    ) {
+      safeAvatarUrl = `/uploads/avatars/${safeAvatarUrl}`;
+    }
 
     // ✅ Update user in the database
     await db.query(
@@ -77,10 +86,10 @@ export async function POST(req: NextRequest) {
         parsed.email,
         parsed.phone || '',
         parsed.chat_app,
-        safeAvatarUrl || '',
+        safeAvatarUrl,
         parsed.avatar_alt || '',
         parsed.avatar_title || '',
-        parsed.website || '', // ✅ Safe even if empty
+        parsed.website || '',
         parsed.about_me || '',
         targetUserId,
       ]

@@ -7,7 +7,7 @@ const nextConfig: NextConfig = {
   },
   images: {
     domains: ['lh3.googleusercontent.com', 'platform-lookaside.fbsbx.com'],
-    unoptimized: true, // ✅ dodaj to jeśli używasz lokalnych plików z /public
+    unoptimized: true
   },
 };
 
