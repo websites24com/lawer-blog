@@ -1,5 +1,3 @@
-// File: app/lib/posts.ts
-
 import { db } from '@/app/lib/db';
 import type { PostSummary, PostWithDetails } from '@/app/lib/definitions';
 
@@ -18,7 +16,7 @@ export async function getAllApprovedPosts(userId?: number): Promise<PostSummary[
       users.first_name,
       users.last_name,
       users.avatar_url,
-      users.slug AS user_slug, -- ✅ DODAJ
+      users.slug AS user_slug,
       ${
         userId
           ? `EXISTS (
@@ -44,12 +42,12 @@ export async function getAllApprovedPosts(userId?: number): Promise<PostSummary[
     featured_photo: row.featured_photo,
     category: row.category,
     followed_by_current_user: !!row.followed_by_current_user,
-    status: 'approved', // ✅ explicitly set to fix type error
+    status: 'approved',
     user: {
       first_name: row.first_name,
       last_name: row.last_name,
       avatar_url: row.avatar_url,
-      slug: row.user_slug, // ✅ DODAJ
+      slug: row.user_slug,
     },
   }));
 }
@@ -97,79 +95,106 @@ export async function getAllPosts(userId: number): Promise<PostSummary[]> {
       first_name: row.first_name,
       last_name: row.last_name,
       avatar_url: row.avatar_url,
-      slug: row.user_slug, // ✅ DODAJ
+      slug: row.user_slug,
     },
   }));
 }
 
 // ✅ Get post with all details for editing or viewing
-export async function getPostBySlug(slug: string, userId: number): Promise<PostWithDetails | null> {
-  const [rows] = await db.query<any[]>(
+// app/lib/posts.ts
+
+
+
+export async function getPostBySlug(slug: string, viewerId: number): Promise<PostWithDetails | null> {
+  // ✅ Get main post info
+  const [rows] = await db.query(
     `
     SELECT 
-      posts.*,
-      posts.category_id,
-      categories.name AS category,
-      users.first_name,
-      users.last_name,
-      users.avatar_url,
-      users.slug AS user_slug, -- ✅ DODAJ
+      p.*, 
+      c.name AS category,
+      u.first_name, u.last_name, u.slug AS user_slug, u.avatar_url,
       EXISTS (
-        SELECT 1 FROM followed_posts 
-        WHERE followed_posts.user_id = ? AND followed_posts.post_id = posts.id
+        SELECT 1 FROM followed_posts fp
+        WHERE fp.post_id = p.id AND fp.user_id = ?
       ) AS followed_by_current_user
-    FROM posts
-    LEFT JOIN categories ON posts.category_id = categories.id
-    LEFT JOIN users ON posts.user_id = users.id
-    WHERE posts.slug = ?
+    FROM posts p
+    LEFT JOIN categories c ON p.category_id = c.id
+    LEFT JOIN users u ON p.user_id = u.id
+    WHERE p.slug = ?
     LIMIT 1
     `,
-    [userId, slug]
+    [viewerId, slug]
   );
 
-  const post = rows[0];
+  const post = (rows as any[])[0];
   if (!post) return null;
 
-  const [comments] = await db.query<any[]>(
-    `SELECT name, email, message, created_at 
-     FROM comments 
-     WHERE post_id = ? 
-     ORDER BY created_at DESC`,
+  // ✅ Attach nested user object
+  post.user = {
+    first_name: post.first_name,
+    last_name: post.last_name,
+    slug: post.user_slug,
+    avatar_url: post.avatar_url,
+  };
+
+  // Clean flat fields
+  delete post.first_name;
+  delete post.last_name;
+  delete post.user_slug;
+  delete post.avatar_url;
+
+  // ✅ Get all approved comments (top-level + replies)
+  const [allComments] = await db.query<any[]>(
+    `
+    SELECT 
+      cm.id, cm.post_id, cm.user_id, cm.parent_id, cm.message AS content, cm.created_at,
+      u.first_name, u.last_name, u.slug AS user_slug, u.avatar_url
+    FROM comments cm
+    JOIN users u ON cm.user_id = u.id
+    WHERE cm.post_id = ? AND cm.status = 'approved'
+    ORDER BY cm.created_at ASC
+    `,
     [post.id]
   );
 
- return {
-  id: post.id,
-  slug: post.slug,
-  title: post.title,
-  content: post.content,
-  excerpt: post.excerpt,
-  created_at: post.created_at,
-  updated_at: post.updated_at,
-  featured_photo: post.featured_photo,
-  photo_alt: post.photo_alt || null,       // ✅ include this if available
-  photo_title: post.photo_title || null,   // ✅ include this if available
-  status: post.status,
-  category: post.category,
-  category_id: post.category_id,
-  user_id: post.user_id,                   // ✅ FIX: add this
-  followed_by_current_user: !!post.followed_by_current_user,
-  user: {
-    first_name: post.first_name,
-    last_name: post.last_name,
-    avatar_url: post.avatar_url,
-    slug: post.user_slug,
-  },
-  comments: comments.map((c) => ({
-    id: c.id,
-    name: c.name,
-    email: c.email,
-    content: c.message,                    // ✅ rename to `content` as expected by the type
-    created_at: c.created_at,
-  })),
-};
+  // ✅ Build nested comment tree
+  const commentMap: { [id: number]: any } = {};
+  const rootComments: any[] = [];
 
+  allComments.forEach((comment) => {
+    // Attach user info
+    comment.user = {
+      first_name: comment.first_name,
+      last_name: comment.last_name,
+      slug: comment.user_slug,
+      avatar_url: comment.avatar_url,
+    };
+
+    delete comment.first_name;
+    delete comment.last_name;
+    delete comment.user_slug;
+    delete comment.avatar_url;
+
+    comment.replies = [];
+    commentMap[comment.id] = comment;
+
+    if (!comment.parent_id) {
+      rootComments.push(comment);
+    }
+  });
+
+  allComments.forEach((comment) => {
+    if (comment.parent_id && commentMap[comment.parent_id]) {
+      commentMap[comment.parent_id].replies.push(comment);
+    }
+  });
+
+  // ✅ Attach to post
+  post.comments = rootComments;
+
+  return post as PostWithDetails;
 }
+
 
 // ✅ All categories
 export async function getAllCategories(): Promise<{ id: number; name: string }[]> {

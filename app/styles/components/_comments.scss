@@ -1,0 +1,122 @@
+.comments-section {
+  margin-top: 3rem;
+  padding: 1rem;
+}
+
+.comments-tree {
+  margin-top: 1.5rem;
+}
+
+.comment-item {
+  position: relative;
+  padding: 1rem 0 0 1rem;
+  border-left: 2px solid #ccc;
+  transition: all 0.3s ease;
+
+  &.pending-comment {
+    background-color: #fffbe6;
+    border-left-color: orange;
+    opacity: 0.8;
+  }
+}
+
+.comment-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  position: relative;
+}
+
+.avatar-wrapper {
+  flex-shrink: 0;
+}
+
+.comment-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.comment-content {
+  flex: 1;
+}
+
+.comment-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9rem;
+  color: #555;
+}
+
+.comment-time {
+  font-style: italic;
+  color: #888;
+}
+
+.comment-message {
+  margin: 0.5rem 0;
+  font-size: 1rem;
+  color: #222;
+}
+
+.reply-button {
+  font-size: 0.85rem;
+  background: none;
+  border: none;
+  color: #0070f3;
+  cursor: pointer;
+  margin-top: 0.5rem;
+  padding: 0;
+}
+
+.reply-form {
+  margin-top: 0.5rem;
+
+  textarea {
+    width: 100%;
+    resize: vertical;
+    padding: 0.5rem;
+    border: 1px solid #ccc;
+    font-size: 0.9rem;
+    border-radius: 4px;
+  }
+
+  button {
+    margin-top: 0.5rem;
+    background-color: #0070f3;
+    color: white;
+    border: none;
+    padding: 0.4rem 0.8rem;
+    font-size: 0.85rem;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+}
+
+.comment-children {
+  margin-top: 1rem;
+  position: relative;
+}
+
+.toggle-thread-btn {
+  margin-bottom: 0.5rem;
+  font-size: 0.8rem;
+  background: none;
+  border: none;
+  color: #0070f3;
+  cursor: pointer;
+  padding-left: 0.5rem;
+}
+
+.threaded-replies {
+  max-height: 1000px;
+  overflow: hidden;
+  transition: max-height 0.3s ease-in-out;
+
+  &.collapsed {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease-in-out;
+  }
+}

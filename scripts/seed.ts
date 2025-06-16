@@ -63,22 +63,29 @@ async function seed() {
       status ENUM('pending', 'approved', 'draft', 'declined') DEFAULT 'pending',
       user_id INT,
       category_id INT,
+      edited_by INT DEFAULT NULL,
+      edited_at TIMESTAMP NULL DEFAULT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
-      FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
+      FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL,
+      FOREIGN KEY (edited_by) REFERENCES users(id) ON DELETE SET NULL
     );
 
     CREATE TABLE comments (
       id INT AUTO_INCREMENT PRIMARY KEY,
       post_id INT NOT NULL,
-      user_id INT,
-      name VARCHAR(100) NOT NULL,
-      email VARCHAR(100),
+      user_id INT NOT NULL,
+      parent_id INT DEFAULT NULL,
       message TEXT NOT NULL,
+      status ENUM('pending', 'approved', 'declined') DEFAULT 'pending',
+      edited_by INT DEFAULT NULL,
+      edited_at TIMESTAMP NULL DEFAULT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (parent_id) REFERENCES comments(id) ON DELETE CASCADE,
+      FOREIGN KEY (edited_by) REFERENCES users(id) ON DELETE SET NULL
     );
 
     CREATE TABLE followed_posts (
@@ -101,22 +108,18 @@ async function seed() {
   }
 
   const hashedPassword = await bcrypt.hash('secret123', 10);
-  const userIds = [];
+  const userIds: number[] = [];
 
-  // Helper to generate unique slug
- // Fix begins here ↓
-async function generateUniqueSlug(baseSlug: string): Promise<string> {
-  let slug = baseSlug;
-  let suffix = 1;
-
-  while (true) {
-    const [rows] = await connection.query('SELECT COUNT(*) as count FROM users WHERE slug = ?', [slug]);
-    if ((rows as any)[0].count === 0) break;
-    slug = `${baseSlug}-${suffix++}`;
+  async function generateUniqueSlug(baseSlug: string): Promise<string> {
+    let slug = baseSlug;
+    let suffix = 1;
+    while (true) {
+      const [rows] = await connection.query('SELECT COUNT(*) as count FROM users WHERE slug = ?', [slug]);
+      if ((rows as any)[0].count === 0) break;
+      slug = `${baseSlug}-${suffix++}`;
+    }
+    return slug;
   }
-
-  return slug;
-}
 
   for (let i = 0; i < 20; i++) {
     const first_name = faker.person.firstName();
@@ -124,8 +127,6 @@ async function generateUniqueSlug(baseSlug: string): Promise<string> {
     const email = faker.internet.email({ firstName: first_name, lastName: last_name });
     const baseSlug = slugify(`${first_name} ${last_name}`, { lower: true, strict: true });
     const uniqueSlug = await generateUniqueSlug(baseSlug);
-
-    console.log(`✅ User created: ${email} → password: secret123 → slug: ${uniqueSlug}`);
 
     const [result] = await connection.query(
       `INSERT INTO users (
@@ -154,10 +155,10 @@ async function generateUniqueSlug(baseSlug: string): Promise<string> {
       ]
     );
 
-    userIds.push(result.insertId);
+    userIds.push((result as any).insertId);
   }
 
-  const postIds = [];
+  const postIds: number[] = [];
 
   for (let i = 0; i < 20; i++) {
     const title = faker.lorem.sentence(6);
@@ -169,9 +170,11 @@ async function generateUniqueSlug(baseSlug: string): Promise<string> {
     const featured_photo = `/uploads/posts/${faker.system.fileName()}`;
     const photo_alt = faker.lorem.words(5);
     const photo_title = faker.company.name();
+    const edited_by = Math.random() < 0.3 ? faker.helpers.arrayElement(userIds) : null;
+    const edited_at = edited_by ? faker.date.recent({ days: 10 }) : null;
 
     const [result] = await connection.query(
-      'INSERT INTO posts (slug, title, excerpt, content, featured_photo, photo_alt, photo_title, status, user_id, category_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO posts (slug, title, excerpt, content, featured_photo, photo_alt, photo_title, status, user_id, category_id, edited_by, edited_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
         slug,
         title,
@@ -183,24 +186,26 @@ async function generateUniqueSlug(baseSlug: string): Promise<string> {
         'pending',
         user_id,
         category_id,
+        edited_by,
+        edited_at,
       ]
     );
 
-    postIds.push(result.insertId);
+    postIds.push((result as any).insertId);
   }
 
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < 20; i++) {
     const post_id = faker.helpers.arrayElement(postIds);
     const user_id = faker.helpers.arrayElement(userIds);
+    const message = faker.lorem.sentences(2);
+    const status = faker.helpers.arrayElement(['pending', 'approved', 'declined']);
+    const parent_id = Math.random() < 0.3 ? faker.number.int({ min: 1, max: i || 1 }) : null;
+    const edited_by = Math.random() < 0.3 ? faker.helpers.arrayElement(userIds) : null;
+    const edited_at = edited_by ? faker.date.recent({ days: 10 }) : null;
+
     await connection.query(
-      'INSERT INTO comments (post_id, user_id, name, email, message) VALUES (?, ?, ?, ?, ?)',
-      [
-        post_id,
-        user_id,
-        faker.person.fullName(),
-        faker.internet.email(),
-        faker.lorem.sentences(2),
-      ]
+      'INSERT INTO comments (post_id, user_id, parent_id, message, status, edited_by, edited_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [post_id, user_id, parent_id, message, status, edited_by, edited_at]
     );
   }
 

@@ -42,7 +42,27 @@ export type Comment = {
   name: string;
   email: string | null;
   message: string;
+  parent_id: number | null;
+  status: 'pending' | 'approved' | 'declined';
   created_at: string;
+  edited_by: number | null; // ✅ NEW
+  edited_at: string | null; // ✅ NEW
+};
+
+
+export type CommentWithUser = {
+  id: number;
+  post_id: number;
+  user_id: number;
+  first_name: string;
+  last_name: string;
+  avatar_url: string | null;
+  message: string;
+  parent_id: number | null;
+  status: 'pending' | 'approved' | 'declined';
+  created_at: string;
+  edited_by: number | null;
+  edited_at: string | null;
 };
 
 export type FullUserData = UserRow & {
@@ -72,4 +92,11 @@ export type PostWithDetails = {
   category_id: number | null;
   created_at: string;
   updated_at: string;
+  edited_by: number | null; // ✅ NEW
+  edited_at: string | null; // ✅ NEW
+  user: SimpleUser;
+  category: Category;
+  followed_by_current_user?: boolean;
+  comments: CommentWithUser[];
 };
+

@@ -3,18 +3,21 @@ import { auth } from '@/app/lib/auth';
 import ImageWithFallback from '@/app/components/ImageWithFallback';
 import FollowButton from '@/app/components/FollowPostButton';
 import AuthorInfo from '@/app/components/AuthorInfo';
+import CommentForm from '@/app/components/CommentForm';
+import Comments from '@/app/components/Comments';
 
 import type { Metadata } from 'next';
 
 type PageProps = {
   params: {
-    slug: string; // ✅ fixed
+    slug: string;
   };
 };
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const session = await auth();
-  const userId = session?.user?.id ?? 0; // ✅ safe default
+  const userId = session?.user?.id ?? 0;
+
   const post = await getPostBySlug(params.slug, userId);
 
   return {
@@ -25,10 +28,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function BlogPostPage({ params }: PageProps) {
   const session = await auth();
-  const userId = session?.user?.id ?? 0; // ✅ safe default
+  const userId = session?.user?.id ?? 0;
+
   const post = await getPostBySlug(params.slug, userId);
 
-  if (!post) return <div><h1>404 - Post Not Found</h1></div>;
+  if (!post) {
+    return <div><h1>404 - Post Not Found</h1></div>;
+  }
 
   return (
     <main style={{ padding: '2rem', maxWidth: '900px', margin: '0 auto' }}>
@@ -72,29 +78,16 @@ export default async function BlogPostPage({ params }: PageProps) {
       <section style={{ marginTop: '3rem' }}>
         <h2>Comments ({post.comments?.length || 0})</h2>
 
-        {post.comments?.length === 0 ? (
-          <p>No comments yet.</p>
+        {/* ✅ Nested comments with user info */}
+        <Comments comments={post.comments || []} />
+
+        {/* ✅ Allow logged-in users to comment */}
+        {session ? (
+          <CommentForm postId={post.id} />
         ) : (
-          <ul style={{ listStyle: 'none', padding: 0 }}>
-            {post.comments.map((comment) => (
-              <li
-                key={comment.id}
-                style={{
-                  marginBottom: '1.5rem',
-                  borderBottom: '1px solid #ddd',
-                  paddingBottom: '1rem',
-                }}
-              >
-                <p>
-                  <strong>{comment.name}</strong> –{' '}
-                  <span style={{ color: '#666' }}>
-                    {new Date(comment.created_at).toLocaleDateString()}
-                  </span>
-                </p>
-                <p style={{ whiteSpace: 'pre-wrap' }}>{comment.content}</p>
-              </li>
-            ))}
-          </ul>
+          <p style={{ marginTop: '2rem', fontStyle: 'italic' }}>
+            🔒 You must be logged in to post a comment.
+          </p>
         )}
       </section>
     </main>

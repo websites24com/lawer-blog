@@ -1,5 +1,3 @@
-// app/lib/users.ts
-
 import { db } from '@/app/lib/db';
 import type {
   FullUserData,
@@ -57,11 +55,15 @@ export async function getUserWithDetails({
 
   const posts = await getPostsByUserId(user.id);
 
+  // ✅ Pobrane komentarze użytkownika wraz z danymi użytkownika (do wyświetlania)
   const [comments] = await db.query<RowDataPacket[]>(
-    `SELECT id, name, email, message, created_at
-     FROM comments
-     WHERE user_id = ?
-     ORDER BY created_at DESC`,
+    `SELECT 
+       c.id, c.message, c.created_at, c.post_id, c.parent_id,
+       u.first_name, u.last_name, u.avatar_url
+     FROM comments c
+     JOIN users u ON c.user_id = u.id
+     WHERE c.user_id = ?
+     ORDER BY c.created_at DESC`,
     [user.id]
   );
 
@@ -148,10 +150,13 @@ export async function getUserBySlug(
   const posts = await getPostsByUserId(user.id);
 
   const [comments] = await db.query<RowDataPacket[]>(
-    `SELECT id, name, email, message, created_at
-     FROM comments
-     WHERE user_id = ?
-     ORDER BY created_at DESC`,
+    `SELECT 
+       c.id, c.message, c.created_at, c.post_id, c.parent_id,
+       u.first_name, u.last_name, u.avatar_url
+     FROM comments c
+     JOIN users u ON c.user_id = u.id
+     WHERE c.user_id = ?
+     ORDER BY c.created_at DESC`,
     [user.id]
   );
 
