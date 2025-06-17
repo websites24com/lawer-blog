@@ -66,12 +66,14 @@ export default function Comments({ comments: initialComments }: Props) {
 
   const renderComment = (comment: CommentWithUser, level = 0) => {
     const user = comment.user;
+
+    // ✅ Final fixed avatar URL resolution
     const avatarUrl =
-  user?.avatar_url && user.avatar_url.trim() !== ''
-    ? user.avatar_url.startsWith('http')
-      ? user.avatar_url
-      : `/uploads/avatars/${user.avatar_url}`
-    : '/uploads/avatars/default.jpg';
+      user?.avatar_url && user.avatar_url.trim() !== ''
+        ? user.avatar_url.startsWith('http') || user.avatar_url.startsWith('/uploads/')
+          ? user.avatar_url
+          : `/uploads/avatars/${user.avatar_url}`
+        : '/uploads/avatars/default.jpg';
 
     const fullName = `${user?.first_name || ''} ${user?.last_name || ''}`;
 

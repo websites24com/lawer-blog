@@ -20,50 +20,48 @@ export default function ImageWithFallback({
   className,
   wrapperClassName,
 }: Props) {
+  // Default fallback based on image type
   const defaultFallback =
     imageType === 'avatar'
       ? '/uploads/avatars/default.jpg'
       : '/uploads/posts/default.jpg';
 
-  // ⛑ Initial fallback logic (safe default)
+  // Clean helper for checking null or blank
   const resolveSrc = (value: string | null | undefined) =>
     value && value.trim() !== '' ? value : undefined;
 
-  // ✅ Hold current image source in state
+  // Initial resolved image source
   const [imgSrc, setImgSrc] = useState<string>(
     resolveSrc(src) ?? resolveSrc(fallbackSrc) ?? defaultFallback
   );
 
-  // ✅ Re-check when props change (e.g. Google avatar comes in)
+  // Update imgSrc if props change (important for session avatars)
   useEffect(() => {
     const newResolved =
       resolveSrc(src) ?? resolveSrc(fallbackSrc) ?? defaultFallback;
     setImgSrc(newResolved);
   }, [src, fallbackSrc]);
 
-  // ✅ Check if the image is local (/uploads/)
-  const isLocal = imgSrc.startsWith('/uploads/');
-
+  // Wrapper and image classes
   const effectiveWrapperClass =
     wrapperClassName || (imageType === 'avatar' ? 'image-wrapper-avatar' : 'image-wrapper');
 
   const effectiveImageClass =
     className || (imageType === 'avatar' ? 'fallback-image-avatar' : 'fallback-image');
 
+  // Final render
   return (
     <div className={effectiveWrapperClass}>
       <Image
         src={imgSrc}
         alt={alt}
         fill
-        unoptimized={isLocal}
-        // ✅ Only fallback to default if Google avatar fails
+        className={effectiveImageClass}
         onError={() => {
           if (imgSrc !== defaultFallback) {
             setImgSrc(defaultFallback);
           }
         }}
-        className={effectiveImageClass}
       />
     </div>
   );
