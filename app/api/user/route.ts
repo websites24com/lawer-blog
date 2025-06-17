@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
     const providerId = searchParams.get('providerId') || undefined;
 
     // ✅ Add full log context for easier debugging
-    console.log('🔍 Incoming user query:', { email, providerId });
+    // console.log('🔍 Incoming user query:', { email, providerId });
 
     if (!email && !providerId) {
       return NextResponse.json(
@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
       followers: userData.followers || [],
     };
 
-    console.log('📦 Sending user dashboard payload:', payload);
+    // console.log('📦 Sending user dashboard payload:', payload);
     return NextResponse.json(payload);
   } catch (err) {
     console.error('❌ Failed to load user data:', err);

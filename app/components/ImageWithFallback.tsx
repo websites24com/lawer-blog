@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react';
 type Props = {
   src: string | null;
   fallbackSrc?: string;
-  imageType?: 'post' | 'avatar'; // Default: 'bike'
+  imageType?: 'post' | 'avatar';
   alt: string;
   className?: string;
   wrapperClassName?: string;
@@ -21,16 +21,29 @@ export default function ImageWithFallback({
   wrapperClassName,
 }: Props) {
   const defaultFallback =
-    imageType === 'avatar' ? '/uploads/avatars/default.jpg' : '/uploads/posts/default.jpg';
+    imageType === 'avatar'
+      ? '/uploads/avatars/default.jpg'
+      : '/uploads/posts/default.jpg';
 
-  const resolvedInitial = src && src.trim() !== '' ? src : fallbackSrc || defaultFallback;
-  const [imgSrc, setImgSrc] = useState(resolvedInitial);
+  // ⛑ Initial fallback logic (safe default)
+  const resolveSrc = (value: string | null | undefined) =>
+    value && value.trim() !== '' ? value : undefined;
 
+  // ✅ Hold current image source in state
+  const [imgSrc, setImgSrc] = useState<string>(
+    resolveSrc(src) ?? resolveSrc(fallbackSrc) ?? defaultFallback
+  );
+
+  // ✅ Re-check when props change (e.g. Google avatar comes in)
   useEffect(() => {
-    setImgSrc(src && src.trim() !== '' ? src : fallbackSrc || defaultFallback);
-  }, [src, fallbackSrc, defaultFallback]);
+    const newResolved =
+      resolveSrc(src) ?? resolveSrc(fallbackSrc) ?? defaultFallback;
+    setImgSrc(newResolved);
+  }, [src, fallbackSrc]);
 
-  // Apply your custom SCSS classes by default
+  // ✅ Check if the image is local (/uploads/)
+  const isLocal = imgSrc.startsWith('/uploads/');
+
   const effectiveWrapperClass =
     wrapperClassName || (imageType === 'avatar' ? 'image-wrapper-avatar' : 'image-wrapper');
 
@@ -42,9 +55,15 @@ export default function ImageWithFallback({
       <Image
         src={imgSrc}
         alt={alt}
-        onError={() => setImgSrc(fallbackSrc || defaultFallback)}
-        className={effectiveImageClass}
         fill
+        unoptimized={isLocal}
+        // ✅ Only fallback to default if Google avatar fails
+        onError={() => {
+          if (imgSrc !== defaultFallback) {
+            setImgSrc(defaultFallback);
+          }
+        }}
+        className={effectiveImageClass}
       />
     </div>
   );
