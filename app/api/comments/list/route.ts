@@ -4,10 +4,13 @@ import { db } from '@/app/lib/db';
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const postId = searchParams.get('post_id');
+  const sortParam = searchParams.get('sort'); // 'asc' or 'desc'
 
   if (!postId || isNaN(Number(postId))) {
     return NextResponse.json({ error: 'Invalid post_id' }, { status: 400 });
   }
+
+  const sortDirection = sortParam === 'desc' ? 'DESC' : 'ASC';
 
   try {
     const [rows] = await db.query(
@@ -19,7 +22,7 @@ export async function GET(req: NextRequest) {
       FROM comments c
       JOIN users u ON u.id = c.user_id
       WHERE c.post_id = ?
-      ORDER BY c.created_at ASC
+      ORDER BY c.created_at ${sortDirection}
       `,
       [postId]
     );

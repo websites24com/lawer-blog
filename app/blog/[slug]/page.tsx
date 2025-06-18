@@ -3,8 +3,8 @@ import { auth } from '@/app/lib/auth';
 import ImageWithFallback from '@/app/components/ImageWithFallback';
 import FollowButton from '@/app/components/FollowPostButton';
 import AuthorInfo from '@/app/components/AuthorInfo';
-import CommentForm from '@/app/components/CommentForm';
-import Comments from '@/app/components/Comments';
+import CommentForm from '@/app/components/comments/CommentForm';
+import Comments from '@/app/components/comments/Comments';
 
 import type { Metadata } from 'next';
 
@@ -82,14 +82,7 @@ export default async function BlogPostPage({ params }: PageProps) {
         <Comments comments={post.comments || []} postId={post.id} />
 
 
-        {/* ✅ Allow logged-in users to comment */}
-        {session ? (
-          <CommentForm postId={post.id} />
-        ) : (
-          <p style={{ marginTop: '2rem', fontStyle: 'italic' }}>
-            🔒 You must be logged in to post a comment.
-          </p>
-        )}
+        
       </section>
     </main>
   );
