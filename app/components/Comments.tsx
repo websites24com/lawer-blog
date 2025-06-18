@@ -2,7 +2,9 @@
 
 import { useState } from 'react';
 import { useSession } from 'next-auth/react';
+import toast from 'react-hot-toast';
 
+import Spinner from '@/app/components/Spinner';
 import ImageWithFallback from '@/app/components/ImageWithFallback';
 import FancyDate from '@/app/components/FancyDate';
 import TimeFromDate from '@/app/components/TimeFromDate';
@@ -16,134 +18,224 @@ type CommentWithUser = Comment & {
 
 type Props = {
   comments: CommentWithUser[];
+  postId: number;
 };
 
-export default function Comments({ comments: initialComments }: Props) {
+export default function Comments({ comments: initialComments, postId }: Props) {
+  const { data: session } = useSession();
+  const viewer = session?.user;
+  const viewerId = viewer?.id || null;
+  const viewerRole = viewer?.role || 'GUEST';
+  const isAdminOrMod = viewerRole === 'ADMIN' || viewerRole === 'MODERATOR';
+
   const [comments, setComments] = useState<CommentWithUser[]>(initialComments);
   const [replyingTo, setReplyingTo] = useState<number | null>(null);
-  const [replyContent, setReplyContent] = useState('');
+  const [replyContentById, setReplyContentById] = useState<Record<number, string>>({});
+  const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
+  const [editedContentById, setEditedContentById] = useState<Record<number, string>>({});
+  const [loadingForId, setLoadingForId] = useState<number | null>(null);
+  const [newCommentContent, setNewCommentContent] = useState('');
 
-  const { data: session } = useSession();
+  const isVisible = (comment: CommentWithUser) =>
+    comment.status === 'approved' || comment.user?.id === viewerId || isAdminOrMod;
 
-  const handleReplySubmit = async (parentId: number) => {
-    if (!replyContent.trim() || !session?.user) return;
+  const getStatusLabel = (status: string) =>
+    status === 'pending' ? '⏳ Pending' : status === 'declined' ? '❌ Declined' : '';
 
-    const viewer = session.user;
+  const fetchComments = async () => {
+    try {
+      const res = await fetch(`/api/comments/list?post_id=${postId}`);
 
-    const fakeReply: CommentWithUser = {
-      id: Date.now(),
-      content: replyContent,
-      created_at: new Date().toISOString(),
-      user: {
-        id: viewer.id,
-        first_name: viewer.first_name,
-        last_name: viewer.last_name,
-        avatar_url: viewer.avatar_url || '/uploads/avatars/default.jpg',
-        email: viewer.email,
-        role: viewer.role,
-        status: 'approved',
-        provider: viewer.provider,
-        provider_account_id: viewer.provider_account_id,
-        created_at: viewer.created_at,
-      },
-      replies: [],
-    };
 
-    const updated = comments.map((comment) => {
-      if (comment.id === parentId) {
-        return {
-          ...comment,
-          replies: [...comment.replies, fakeReply],
-        };
-      }
-      return comment;
-    });
-
-    setComments(updated);
-    setReplyingTo(null);
-    setReplyContent('');
+      if (!res.ok) throw new Error();
+      const updated = await res.json();
+      setComments(updated);
+    } catch {
+      toast.error('Failed to refresh comments');
+    }
   };
 
-  const renderComment = (comment: CommentWithUser, level = 0) => {
-    const user = comment.user;
+  const handleReplySubmit = async (parentId: number, message: string) => {
+    const trimmed = message.trim();
+    if (trimmed.length < 2) return toast.error('Reply is too short');
+    setLoadingForId(parentId);
 
-    // ✅ Final fixed avatar URL resolution
-    const avatarUrl =
-      user?.avatar_url && user.avatar_url.trim() !== ''
-        ? user.avatar_url.startsWith('http') || user.avatar_url.startsWith('/uploads/')
-          ? user.avatar_url
-          : `/uploads/avatars/${user.avatar_url}`
-        : '/uploads/avatars/default.jpg';
+    try {
+      const res = await fetch('/api/comments/new', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ post_id: postId, parent_id: parentId, message: trimmed }),
+      });
+      if (!res.ok) throw new Error();
 
-    const fullName = `${user?.first_name || ''} ${user?.last_name || ''}`;
+      toast.success('Reply submitted');
+      await fetchComments();
+      setReplyContentById((prev) => {
+        const updated = { ...prev };
+        delete updated[parentId];
+        return updated;
+      });
+      setReplyingTo(null);
+    } catch {
+      toast.error('Failed to submit reply');
+    } finally {
+      setLoadingForId(null);
+    }
+  };
 
-    console.log('🧠 Avatar debug:', {
-      id: comment.id,
-      fullName,
-      avatarUrl,
-    });
+  const handleEditSubmit = async (commentId: number, newContent: string) => {
+    const trimmed = newContent.trim();
+    if (trimmed.length < 2) return toast.error('Comment is too short');
+    setLoadingForId(commentId);
+
+    try {
+      const res = await fetch('/api/comments/edit', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ comment_id: commentId, content: trimmed }),
+      });
+      if (!res.ok) throw new Error();
+
+      toast.success('Comment updated (pending review)');
+      await fetchComments();
+      setEditingCommentId(null);
+    } catch {
+      toast.error('Edit failed');
+    } finally {
+      setLoadingForId(null);
+    }
+  };
+
+  const handleNewCommentSubmit = async () => {
+    const trimmed = newCommentContent.trim();
+    if (trimmed.length < 2) return toast.error('Comment is too short');
+    setLoadingForId(-1);
+
+    try {
+      const res = await fetch('/api/comments/new', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ post_id: postId, parent_id: null, message: trimmed }),
+      });
+      if (!res.ok) throw new Error();
+
+      toast.success('Comment submitted');
+      setNewCommentContent('');
+      await fetchComments();
+    } catch {
+      toast.error('Failed to submit comment');
+    } finally {
+      setLoadingForId(null);
+    }
+  };
+
+  const handleDelete = async (commentId: number) => {
+    if (!confirm('Are you sure you want to delete this comment?')) return;
+    setLoadingForId(commentId);
+
+    try {
+      const res = await fetch('/api/comments/delete', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ comment_id: commentId }),
+      });
+      if (!res.ok) throw new Error();
+
+      const removeComment = (list: CommentWithUser[]): CommentWithUser[] =>
+        list
+          .filter((c) => c.id !== commentId)
+          .map((c) => ({ ...c, replies: removeComment(c.replies) }));
+
+      setComments((prev) => removeComment(prev));
+      toast.success('Comment deleted');
+    } catch {
+      toast.error('Failed to delete comment');
+    } finally {
+      setLoadingForId(null);
+    }
+  };
+
+  const renderComment = (comment: CommentWithUser, level = 0): JSX.Element | null => {
+    if (!isVisible(comment)) return null;
+    const isAuthor = comment.user?.id === viewerId;
+    const isEditing = editingCommentId === comment.id;
 
     return (
-      <div key={comment.id} className="comment" style={{ marginLeft: `${level * 2}rem` }}>
-        <div className="comment-body" style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-          <div className="image-wrapper-avatar">
-            <ImageWithFallback
-              src={avatarUrl}
-              fallbackSrc="/uploads/avatars/default.jpg"
-              imageType="avatar"
-              alt={`${fullName}'s avatar`}
-            />
-          </div>
-
+      <div key={comment.id} style={{ marginLeft: `${level * 2}rem` }} className="comment-item">
+        <div className="comment-body">
+          <ImageWithFallback
+            src={comment.user.avatar_url}
+            fallbackSrc="/uploads/avatars/default.jpg"
+            imageType="avatar"
+            alt={`${comment.user.first_name} ${comment.user.last_name}`}
+          />
           <div className="comment-content">
             <div className="comment-meta">
-              <strong>{fullName}</strong>
-              <span className="comment-time" style={{ marginLeft: '0.5rem', fontSize: '0.85rem', color: '#666' }}>
-                <FancyDate dateString={comment.created_at} /> • <TimeFromDate date={comment.created_at} />
-              </span>
+              <strong>{comment.user.first_name} {comment.user.last_name}</strong>
+              <span> • <FancyDate dateString={comment.created_at} /></span>
+              <span> • <TimeFromDate date={comment.created_at} /></span>
+              {comment.edited_at && (
+                <span> • edited <TimeFromDate date={comment.edited_at} /></span>
+              )}
+              {getStatusLabel(comment.status) && (
+                <span className={`comment-status ${comment.status}`}> • {getStatusLabel(comment.status)}</span>
+              )}
             </div>
 
-            <p className="comment-message">
-              {comment.content || <em style={{ color: 'red' }}>No content</em>}
-            </p>
+            {isEditing ? (
+              <textarea
+                rows={3}
+                value={editedContentById[comment.id] || ''}
+                onChange={(e) =>
+                  setEditedContentById((prev) => ({ ...prev, [comment.id]: e.target.value }))
+                }
+              />
+            ) : (
+              <p>{comment.content}</p>
+            )}
 
-            <div className="comment-actions" style={{ marginTop: '0.5rem' }}>
-              <ActionButton
-                onClick={() => setReplyingTo(replyingTo === comment.id ? null : comment.id)}
-                title="Reply to this comment"
-              >
-                ↪️ Reply
-              </ActionButton>
+            <div className="comment-actions">
+              {isAuthor && !isEditing && (
+                <>
+                  <ActionButton onClick={() => {
+                    setEditingCommentId(comment.id);
+                    setEditedContentById((prev) => ({ ...prev, [comment.id]: comment.content }));
+                  }}>✏️ Edit</ActionButton>
+                  <ActionButton onClick={() => handleDelete(comment.id)}>🗑️ Delete</ActionButton>
+                </>
+              )}
+              {isAuthor && isEditing && (
+                <>
+                  <ActionButton onClick={() => handleEditSubmit(comment.id, editedContentById[comment.id] || '')} disabled={loadingForId === comment.id}>💾 Save</ActionButton>
+                  <ActionButton onClick={() => setEditingCommentId(null)}>❌ Cancel</ActionButton>
+                  {loadingForId === comment.id && <Spinner />}
+                </>
+              )}
+              <ActionButton onClick={() => setReplyingTo(replyingTo === comment.id ? null : comment.id)}>↪️ Reply</ActionButton>
             </div>
 
             {replyingTo === comment.id && (
-              <div className="comment-reply-form" style={{ marginTop: '0.75rem' }}>
+              <div className="reply-form">
                 <textarea
-                  value={replyContent}
-                  onChange={(e) => setReplyContent(e.target.value)}
                   rows={3}
-                  style={{
-                    width: '100%',
-                    padding: '0.75rem',
-                    borderRadius: '6px',
-                    border: '1px solid #ccc',
-                    fontSize: '0.95rem',
-                    resize: 'vertical',
-                  }}
+                  value={replyContentById[comment.id] || ''}
+                  onChange={(e) => setReplyContentById((prev) => ({ ...prev, [comment.id]: e.target.value }))}
                   placeholder="Write your reply..."
                 />
-                <div style={{ marginTop: '0.5rem' }}>
-                  <ActionButton onClick={() => handleReplySubmit(comment.id)} title="Submit your reply">
-                    💬 Submit Reply
-                  </ActionButton>
-                </div>
+                <ActionButton
+                  onClick={() => handleReplySubmit(comment.id, replyContentById[comment.id] || '')}
+                  disabled={loadingForId === comment.id}
+                >
+                  💬 Submit Reply
+                </ActionButton>
+                {loadingForId === comment.id && <Spinner />}
               </div>
             )}
           </div>
         </div>
 
         {comment.replies.length > 0 && (
-          <div className="comment-children">
+          <div className="comment-replies">
             {comment.replies.map((reply) => renderComment(reply, level + 1))}
           </div>
         )}
@@ -152,13 +244,29 @@ export default function Comments({ comments: initialComments }: Props) {
   };
 
   return (
-    <section className="comments-section" style={{ padding: '1rem' }}>
-      <h2>💬 Comments</h2>
+    <section className="comments-section">
+      <h2>💬 Comments ({comments.filter(isVisible).length})</h2>
+
       {comments.length === 0 ? (
-        <p>No comments yet. Be the first to comment!</p>
+        <p>No comments yet.</p>
       ) : (
-        <div className="comments-tree">
+        <div className="comments-list">
           {comments.map((comment) => renderComment(comment))}
+        </div>
+      )}
+
+      {viewer && (
+        <div className="new-comment-form" style={{ marginTop: '2rem' }}>
+          <textarea
+            rows={3}
+            placeholder="Write a new comment..."
+            value={newCommentContent}
+            onChange={(e) => setNewCommentContent(e.target.value)}
+          />
+          <ActionButton onClick={handleNewCommentSubmit} disabled={loadingForId === -1}>
+            💬 Submit Comment
+          </ActionButton>
+          {loadingForId === -1 && <Spinner />}
         </div>
       )}
     </section>

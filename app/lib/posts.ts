@@ -106,7 +106,7 @@ export async function getAllPosts(userId: number): Promise<PostSummary[]> {
 
 
 export async function getPostBySlug(slug: string, viewerId: number): Promise<PostWithDetails | null> {
-  // ✅ Get main post info
+  // ✅ 1. Get main post info
   const [rows] = await db.query(
     `
     SELECT 
@@ -129,7 +129,6 @@ export async function getPostBySlug(slug: string, viewerId: number): Promise<Pos
   const post = (rows as any[])[0];
   if (!post) return null;
 
-  // ✅ Attach nested user object
   post.user = {
     first_name: post.first_name,
     last_name: post.last_name,
@@ -137,59 +136,101 @@ export async function getPostBySlug(slug: string, viewerId: number): Promise<Pos
     avatar_url: post.avatar_url,
   };
 
-  // Clean flat fields
   delete post.first_name;
   delete post.last_name;
   delete post.user_slug;
   delete post.avatar_url;
 
-  // ✅ Get all approved comments (top-level + replies)
+  // ✅ 2. Load all comments for this post
   const [allComments] = await db.query<any[]>(
     `
     SELECT 
-      cm.id, cm.post_id, cm.user_id, cm.parent_id, cm.message AS content, cm.created_at,
-      u.first_name, u.last_name, u.slug AS user_slug, u.avatar_url
+      cm.id,
+      cm.post_id,
+      cm.user_id,
+      cm.parent_id,
+      cm.message AS content,
+      cm.status,
+      cm.edited_by,
+      cm.edited_at,
+      cm.created_at,
+
+      u.id AS uid,
+      u.first_name,
+      u.last_name,
+      u.avatar_url,
+      u.email,
+      u.role,
+      u.status AS user_status,
+      u.provider,
+      u.provider_account_id,
+      u.created_at AS user_created_at
     FROM comments cm
     JOIN users u ON cm.user_id = u.id
-    WHERE cm.post_id = ? AND cm.status = 'approved'
+    WHERE cm.post_id = ?
     ORDER BY cm.created_at ASC
     `,
     [post.id]
   );
 
-  // ✅ Build nested comment tree
+  // ✅ 2A. Filter comments:
+  // show only approved, or own (pending/declined)
+  const visibleComments = allComments.filter((comment) => {
+    return (
+      comment.status === 'approved' ||
+      comment.user_id === viewerId
+    );
+  });
+
+  // ✅ 3. Build nested comment tree from visible comments
   const commentMap: { [id: number]: any } = {};
   const rootComments: any[] = [];
 
-  allComments.forEach((comment) => {
-    // Attach user info
+  visibleComments.forEach((comment) => {
+    // build user object
     comment.user = {
+      id: comment.uid,
       first_name: comment.first_name,
       last_name: comment.last_name,
-      slug: comment.user_slug,
       avatar_url: comment.avatar_url,
+      email: comment.email,
+      role: comment.role,
+      status: comment.user_status,
+      provider: comment.provider,
+      provider_account_id: comment.provider_account_id,
+      created_at: comment.user_created_at,
     };
 
+    // cleanup redundant fields
+    delete comment.uid;
     delete comment.first_name;
     delete comment.last_name;
-    delete comment.user_slug;
     delete comment.avatar_url;
+    delete comment.email;
+    delete comment.role;
+    delete comment.user_status;
+    delete comment.provider;
+    delete comment.provider_account_id;
+    delete comment.user_created_at;
 
+    // init replies array and store in map
     comment.replies = [];
     commentMap[comment.id] = comment;
 
+    // if no parent, it's a root comment
     if (!comment.parent_id) {
       rootComments.push(comment);
     }
   });
 
-  allComments.forEach((comment) => {
+  // ✅ 4. Nest replies into their parent comments
+  visibleComments.forEach((comment) => {
     if (comment.parent_id && commentMap[comment.parent_id]) {
       commentMap[comment.parent_id].replies.push(comment);
     }
   });
 
-  // ✅ Attach to post
+  // ✅ 5. Assign to post
   post.comments = rootComments;
 
   return post as PostWithDetails;

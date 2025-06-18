@@ -16,7 +16,7 @@ export const authConfig: NextAuthOptions = {
         password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
-        console.log('🟡 [authorize] Credentials login attempt:', credentials?.email);
+        // console.log('🟡 [authorize] Credentials login attempt:', credentials?.email);
 
         if (!credentials?.email || !credentials?.password) {
           console.log('❌ Missing credentials');
@@ -65,11 +65,11 @@ export const authConfig: NextAuthOptions = {
 
   callbacks: {
     async jwt({ token, account, profile, user }) {
-      console.log('🟢 [jwt] Start');
-      console.log('token (in):', token);
-      console.log('account:', account);
-      console.log('profile:', profile);
-      console.log('user:', user);
+      // console.log('🟢 [jwt] Start');
+      // console.log('token (in):', token);
+      // console.log('account:', account);
+      // console.log('profile:', profile);
+      // console.log('user:', user);
 
       if (account?.provider === 'credentials' && user) {
         token.id = user.id;
@@ -94,7 +94,7 @@ export const authConfig: NextAuthOptions = {
         let user = rows[0];
 
         if (!user) {
-          console.log(`🆕 Creating user for ${provider} (${providerAccountId})`);
+          // console.log(`🆕 Creating user for ${provider} (${providerAccountId})`);
 
           let first_name = 'First';
           let last_name = 'Last';
@@ -145,7 +145,7 @@ export const authConfig: NextAuthOptions = {
               (result as any).insertId,
             ]);
             user = newRows[0];
-            console.log('✅ Inserted user:', user);
+            // console.log('✅ Inserted user:', user);
           } catch (err) {
             console.error('❌ DB error inserting user:', err);
           }
@@ -158,7 +158,7 @@ export const authConfig: NextAuthOptions = {
           token.avatar_url = user.avatar_url ?? null;
           token.provider = user.provider;
           token.provider_account_id = user.provider_account_id;
-          console.log('✅ token (oauth):', token);
+          // console.log('✅ token (oauth):', token);
         }
       }
 
@@ -166,7 +166,7 @@ export const authConfig: NextAuthOptions = {
     },
 
     async session({ session, token }) {
-      console.log('🔵 [session] building from token:', token);
+      // console.log('🔵 [session] building from token:', token);
 
       if (session.user) {
         session.user.id = token.id ?? 0;
@@ -177,7 +177,7 @@ export const authConfig: NextAuthOptions = {
         session.user.provider_account_id = token.provider_account_id ?? null;
       }
 
-      console.log('✅ Final session:', session);
+      // console.log('✅ Final session:', session);
       return session;
     },
   },

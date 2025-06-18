@@ -38,17 +38,14 @@ export type PostSummary = {
 export type Comment = {
   id: number;
   post_id: number;
-  user_id: number | null;
-  name: string;
-  email: string | null;
+  user_id: number;
   message: string;
   parent_id: number | null;
   status: 'pending' | 'approved' | 'declined';
   created_at: string;
-  edited_by: number | null; // ✅ NEW
-  edited_at: string | null; // ✅ NEW
+  edited_by: number | null;
+  edited_at: string | null;
 };
-
 
 export type CommentWithUser = {
   id: number;
@@ -63,6 +60,7 @@ export type CommentWithUser = {
   created_at: string;
   edited_by: number | null;
   edited_at: string | null;
+  replies: CommentWithUser[]; // ✅ Nested support
 };
 
 export type FullUserData = UserRow & {
@@ -92,11 +90,10 @@ export type PostWithDetails = {
   category_id: number | null;
   created_at: string;
   updated_at: string;
-  edited_by: number | null; // ✅ NEW
-  edited_at: string | null; // ✅ NEW
+  edited_by: number | null;
+  edited_at: string | null;
   user: SimpleUser;
   category: Category;
   followed_by_current_user?: boolean;
   comments: CommentWithUser[];
 };
-

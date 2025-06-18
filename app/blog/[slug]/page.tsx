@@ -76,10 +76,11 @@ export default async function BlogPostPage({ params }: PageProps) {
       />
 
       <section style={{ marginTop: '3rem' }}>
-        <h2>Comments ({post.comments?.length || 0})</h2>
+        { /* <h2>💬 Comments ({post.comments?.length || 0})</h2> */ }
 
         {/* ✅ Nested comments with user info */}
-        <Comments comments={post.comments || []} />
+        <Comments comments={post.comments || []} postId={post.id} />
+
 
         {/* ✅ Allow logged-in users to comment */}
         {session ? (

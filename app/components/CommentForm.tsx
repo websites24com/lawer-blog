@@ -7,9 +7,10 @@ import ActionButton from '@/app/components/ActionButton';
 
 type Props = {
   postId: number;
+  parentId?: number | null; // <-- optional for replies
 };
 
-export default function CommentForm({ postId }: Props) {
+export default function CommentForm({ postId, parentId = null }: Props) {
   const [message, setMessage] = useState('');
   const [isPending, startTransition] = useTransition();
 
@@ -23,16 +24,22 @@ export default function CommentForm({ postId }: Props) {
 
     startTransition(async () => {
       try {
-        const res = await fetch('/api/comments/create', {
+        const res = await fetch('/api/comments/new', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ post_id: postId, message }),
+          body: JSON.stringify({
+            post_id: postId,
+            message,
+            parent_id: parentId, // <-- for nested replies
+          }),
         });
 
         const data = await res.json();
 
         if (!res.ok) {
-          throw new Error(data.error || 'Failed to post comment.');
+          console.error('❌ Server rejected comment:', data.error);
+          toast.error(data.error || 'Failed to post comment.');
+          return;
         }
 
         toast.success('✅ Comment submitted for review');
