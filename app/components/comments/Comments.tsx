@@ -12,8 +12,12 @@ import ActionButton from '@/app/components/ActionButton';
 import CommentForm from '@/app/components/comments/CommentForm';
 import CommentReplyForm from '@/app/components/comments/CommentReplyForm';
 import CommentEditForm from '@/app/components/comments/CommentEditForm';
+import CommentsPagination from '@/app/components/comments/CommentsPagination';
 
 import type { Comment, SimpleUser } from '@/app/lib/definitions';
+import CommentDeleteButton from './CommentDeleteButton';
+
+const COMMENTS_PER_PAGE = 5;
 
 type CommentWithUser = Comment & {
   user: SimpleUser;
@@ -36,6 +40,7 @@ export default function Comments({ comments: initialData, postId }: Props) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [replyingToId, setReplyingToId] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     setComments(initialData);
@@ -59,21 +64,24 @@ export default function Comments({ comments: initialData, postId }: Props) {
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this comment?')) return;
-    try {
-      const res = await fetch('/api/comments/delete', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ comment_id: id }),
-      });
-      if (!res.ok) throw new Error();
-      toast.success('Comment deleted');
-      await fetchComments();
-    } catch {
-      toast.error('Failed to delete comment');
+  const flattenVisible = (comments: CommentWithUser[]): CommentWithUser[] => {
+    const all: CommentWithUser[] = [];
+    for (const comment of comments) {
+      if (isVisible(comment)) {
+        all.push(comment);
+        all.push(...comment.replies.filter(isVisible));
+      }
     }
+    return all;
   };
+
+  const paginatedVisible = flattenVisible(comments);
+  const totalVisible = paginatedVisible.length;
+  const totalPages = Math.ceil(totalVisible / COMMENTS_PER_PAGE);
+  const paginated = paginatedVisible.slice(
+    (currentPage - 1) * COMMENTS_PER_PAGE,
+    currentPage * COMMENTS_PER_PAGE
+  );
 
   const renderComment = (comment: CommentWithUser, level = 0): JSX.Element | null => {
     if (!isVisible(comment)) return null;
@@ -133,9 +141,7 @@ export default function Comments({ comments: initialData, postId }: Props) {
                       }}>
                         ✏️ Edit
                       </ActionButton>
-                      <ActionButton onClick={() => handleDelete(comment.id)}>
-                        🗑️ Delete
-                      </ActionButton>
+                      <CommentDeleteButton commentId={comment.id} onDeleted={fetchComments} />
                     </>
                   )}
                 </div>
@@ -164,21 +170,30 @@ export default function Comments({ comments: initialData, postId }: Props) {
 
   return (
     <section className="comments-section">
-      <h2>💬 Comments ({comments.filter(isVisible).length})</h2>
+      <h2>💬 Comments ({totalVisible})</h2>
 
       {!isLoaded ? (
         <Spinner />
       ) : (
         <>
           <div className="comments-list">
-            {comments.length === 0 ? (
+            {paginated.length === 0 ? (
               <p>No comments yet.</p>
             ) : (
-              comments.map((comment) => renderComment(comment))
+              paginated.map((comment) =>
+                renderComment(comment, comment.parent_id ? 1 : 0)
+              )
             )}
           </div>
 
-          {/* ✅ Add Comment button & textarea (toggle built into CommentForm) */}
+          {totalPages > 1 && (
+            <CommentsPagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+            />
+          )}
+
           {viewer && (
             <CommentForm postId={postId} onSuccess={fetchComments} />
           )}

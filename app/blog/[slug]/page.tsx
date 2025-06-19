@@ -1,8 +1,8 @@
 import { getPostBySlug } from '@/app/lib/posts';
 import { auth } from '@/app/lib/auth';
 import ImageWithFallback from '@/app/components/ImageWithFallback';
-import FollowButton from '@/app/components/FollowPostButton';
-import AuthorInfo from '@/app/components/AuthorInfo';
+import FollowButton from '@/app/components/posts/FollowPostButton';
+import AuthorInfo from '@/app/components/user/AuthorInfo';
 import CommentForm from '@/app/components/comments/CommentForm';
 import Comments from '@/app/components/comments/Comments';
 

@@ -1,5 +1,5 @@
 import { getPostBySlug, getAllCategories } from '@/app/lib/posts';
-import EditPostForm from '@/app/components/EditPostForm';
+import EditPostForm from '@/app/components/posts/EditPostForm';
 import { notFound } from 'next/navigation';
 import { auth } from '@/app/lib/auth';
 

@@ -1,5 +1,5 @@
 // lawyer-blog/app/user/edit/page.tsx
-import EditUserForm from '@/app/components/EditUserForm';
+import EditUserForm from '@/app/components/user/EditUserForm';
 import { auth } from '@/app/lib/auth'; // ⬅️ your server-side session util
 
 import { redirect } from 'next/navigation';

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import type { PostWithDetails } from '@/app/lib/definitions';
-import PostContent from '@/app/components/PostContent';
+import PostContent from '@/app/components/posts/PostContent';
 
 export default function LivePreviewPage() {
   const [post, setPost] = useState<PostWithDetails | null>(null);

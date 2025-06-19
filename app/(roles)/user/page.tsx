@@ -8,7 +8,7 @@ import { confirmAlert } from 'react-confirm-alert';
 import 'react-confirm-alert/src/react-confirm-alert.css';
 
 import ImageWithFallback from '@/app/components/ImageWithFallback';
-import FollowPostButton from '@/app/components/FollowPostButton';
+import FollowPostButton from '@/app/components/posts/FollowPostButton';
 import ActionButton from '@/app/components/ActionButton';
 import Spinner from '@/app/components/Spinner';
 import FancyDate from '@/app/components/FancyDate';

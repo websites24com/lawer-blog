@@ -5,7 +5,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { updatePostStatus, deletePostAction } from '@/app/actions/admin-posts';
 import toast from 'react-hot-toast';
-import ConfirmDeleteDialog from './ConfirmDeleteDialog';
+import ConfirmDeleteDialog from '../ConfirmDeleteDialog';
 import ImageWithFallback from '@/app/components/ImageWithFallback';
 import ActionButton from '@/app/components/ActionButton';
 

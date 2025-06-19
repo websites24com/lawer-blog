@@ -1,7 +1,7 @@
 import { auth } from '@/app/lib/auth';
 import { getAllApprovedPosts } from '@/app/lib/posts';
 import type { PostSummary } from '@/app/lib/definitions';
-import FollowButton from '@/app/components/FollowPostButton';
+import FollowButton from '@/app/components/posts/FollowPostButton';
 import ImageWithFallback from '@/app/components/ImageWithFallback';
 import FancyDate from '@/app/components/FancyDate';
 import Link from 'next/link';

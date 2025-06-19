@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition } from 'react';
 import type { PostSummary } from '@/app/lib/definitions';
 import toast from 'react-hot-toast';
 import ActionButton from '@/app/components/ActionButton';
-import AdminPostItem from '@/app/components/AdminPostItem';
+import AdminPostItem from '@/app/components/admin/AdminPostItem';
 import { useRouter } from 'next/navigation';
 
 const PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50];

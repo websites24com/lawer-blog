@@ -1,5 +1,5 @@
 import { db } from '@/app/lib/db';
-import CreatePostForm from '@/app/components/CreatePostForm';
+import CreatePostForm from '@/app/components/posts/CreatePostForm';
 
 type Category = { id: number; name: string };
 
