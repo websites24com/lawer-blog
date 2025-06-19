@@ -7,19 +7,19 @@ import toast from 'react-hot-toast';
 import { confirmAlert } from 'react-confirm-alert';
 import 'react-confirm-alert/src/react-confirm-alert.css';
 
-import ImageWithFallback from '@/app/components/ImageWithFallback';
+import ImageWithFallback from '@/app/components/global/ImageWithFallback';
 import FollowPostButton from '@/app/components/posts/FollowPostButton';
-import ActionButton from '@/app/components/ActionButton';
-import Spinner from '@/app/components/Spinner';
-import FancyDate from '@/app/components/FancyDate';
+import ActionButton from '@/app/components/global/ActionButton';
+import Spinner from '@/app/components/global/Spinner';
+import FancyDate from '@/app/components/global/date/FancyDate';
 import { unfollowPost } from '@/app/actions/posts';
 
 import type { UserRow, PostSummary, Comment, SimpleUser } from '@/app/lib/definitions';
-import RenderWebsite from '@/app/components/RenderWebsite';
-import TimeFromDate from '@/app/components/TimeFromDate';
-import RenderPhone from '@/app/components/RenderPhone';
+import RenderWebsite from '@/app/components/global/RenderWebsite';
+import TimeFromDate from '@/app/components/global/date/TimeFromDate';
+import RenderPhone from '@/app/components/global/RenderPhone';
 import { formatOrDash } from '@/app/utils/formatOrDash';
-import RenderEmail from '@/app/components/RenderEmail';
+import RenderEmail from '@/app/components/global/RenderEmail';
 
 type FullUserData = UserRow & {
   posts: PostSummary[];

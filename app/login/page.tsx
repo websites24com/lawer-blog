@@ -3,7 +3,7 @@
 import { signIn } from 'next-auth/react';
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import ActionButton from '@/app/components/ActionButton';
+import ActionButton from '@/app/components/global/ActionButton';
 
 export default function LoginPage() {
   const router = useRouter();

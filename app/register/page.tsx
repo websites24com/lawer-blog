@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { signIn } from 'next-auth/react';
 import toast from 'react-hot-toast';
-import ActionButton from '@/app/components/ActionButton';
+import ActionButton from '@/app/components/global/ActionButton';
 
 export default function RegisterPage() {
   const router = useRouter();

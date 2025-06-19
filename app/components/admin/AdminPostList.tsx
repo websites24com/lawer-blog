@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from 'react';
 import type { PostSummary } from '@/app/lib/definitions';
 import toast from 'react-hot-toast';
-import ActionButton from '@/app/components/ActionButton';
+import ActionButton from '@/app/components/global/ActionButton';
 import AdminPostItem from '@/app/components/admin/AdminPostItem';
 import { useRouter } from 'next/navigation';
 

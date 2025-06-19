@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import ActionButton from '@/app/components/ActionButton';
+import ActionButton from '@/app/components/global/ActionButton';
 
 export default function AuthPage() {
   const router = useRouter();

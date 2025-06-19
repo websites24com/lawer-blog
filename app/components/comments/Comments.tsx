@@ -4,11 +4,11 @@ import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import toast from 'react-hot-toast';
 
-import Spinner from '@/app/components/Spinner';
-import ImageWithFallback from '@/app/components/ImageWithFallback';
-import FancyDate from '@/app/components/FancyDate';
-import TimeFromDate from '@/app/components/TimeFromDate';
-import ActionButton from '@/app/components/ActionButton';
+import Spinner from '@/app/components/global/Spinner';
+import ImageWithFallback from '@/app/components/global/ImageWithFallback';
+import FancyDate from '@/app/components/global/date/FancyDate';
+import TimeFromDate from '@/app/components/global/date/TimeFromDate';
+import ActionButton from '@/app/components/global/ActionButton';
 import CommentForm from '@/app/components/comments/CommentForm';
 import CommentReplyForm from '@/app/components/comments/CommentReplyForm';
 import CommentEditForm from '@/app/components/comments/CommentEditForm';

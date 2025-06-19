@@ -3,8 +3,8 @@
 import { useState, useTransition } from 'react';
 import toast from 'react-hot-toast';
 
-import Spinner from '@/app/components/Spinner';
-import ActionButton from '@/app/components/ActionButton';
+import Spinner from '@/app/components/global/Spinner';
+import ActionButton from '@/app/components/global/ActionButton';
 
 type Props = {
   commentId: number;

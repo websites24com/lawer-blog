@@ -5,8 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { updateUserInfo, getAllUsers } from '@/app/actions/admin-users';
 import type { UserSummary } from '@/app/lib/definitions';
 import toast from 'react-hot-toast';
-import ActionButton from '@/app/components/ActionButton';
-import ImageWithFallback from '@/app/components/ImageWithFallback';
+import ActionButton from '@/app/components/global/ActionButton';
+import ImageWithFallback from '@/app/components/global/ImageWithFallback';
 import Image from 'next/image';
 
 export default function AdminUserEditPage() {

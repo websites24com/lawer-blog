@@ -5,7 +5,7 @@
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
-import Spinner from '@/app/components/Spinner'; // ✅ Your spinner
+import Spinner from '@/app/components/global/Spinner'; // ✅ Your spinner
 
 type Props = {
   allowedRoles: string[];

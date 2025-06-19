@@ -1,11 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import ActionButton from '../ActionButton';
+import ActionButton from '../global/ActionButton';
 import { useTransition, useState } from 'react';
 import { deletePostAction, updatePostStatus } from '@/app/actions/admin-posts';
 import toast from 'react-hot-toast';
-import ConfirmDeleteDialog from '../ConfirmDeleteDialog';
+import ConfirmDeleteDialog from '../global/ConfirmDeleteDialog';
 
 type Props = {
   postId: number;

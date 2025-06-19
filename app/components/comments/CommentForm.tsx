@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import toast from 'react-hot-toast';
-import ActionButton from '@/app/components/ActionButton';
+import ActionButton from '@/app/components/global/ActionButton';
 
 type Props = {
   postId: number;

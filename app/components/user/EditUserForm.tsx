@@ -5,12 +5,12 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 
-import ActionButton from '@/app/components/ActionButton';
-import ImageWithFallback from '@/app/components/ImageWithFallback';
-import PhoneNumberInput from '@/app/components/PhoneNumberInput';
-import AvatarCropModal from '@/app/components/AvatarCropModal';
-import AvatarMetaModal from '@/app/components/AvatarMetaModal';
-import Spinner from '@/app/components/Spinner';
+import ActionButton from '@/app/components/global/ActionButton';
+import ImageWithFallback from '@/app/components/global/ImageWithFallback';
+import PhoneNumberInput from '@/app/components/global/PhoneNumberInput';
+import AvatarCropModal from '@/app/components/user/images/AvatarCropModal';
+import AvatarMetaModal from '@/app/components/user/images/AvatarMetaModal';
+import Spinner from '@/app/components/global/Spinner';
 
 import { MessageCircle, Smartphone, Send, Trash2 } from 'lucide-react';
 

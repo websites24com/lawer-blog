@@ -2,10 +2,10 @@
 
 import { useState, useRef, useTransition, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import ActionButton from '@/app/components/ActionButton';
-import ImageWithFallback from '@/app/components/ImageWithFallback';
-import RichTextEditor from '@/app/components/RichTextEditor';
-import ImageCropModal from '@/app/components/ImageCropModal';
+import ActionButton from '@/app/components/global/ActionButton';
+import ImageWithFallback from '@/app/components/global/ImageWithFallback';
+import RichTextEditor from '@/app/components/global/RichTextEditor';
+import ImageCropModal from '@/app/components/posts/images/ImageCropModal';
 import { Icon } from '@iconify/react';
 
 let previewWindow: Window | null = null;

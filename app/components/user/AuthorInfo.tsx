@@ -1,6 +1,6 @@
 import Link from 'next/link';
-import ImageWithFallback from '@/app/components/ImageWithFallback';
-import FancyDate from '@/app/components/FancyDate'; // ✅ import your FancyDate component
+import ImageWithFallback from '@/app/components/global/ImageWithFallback';
+import FancyDate from '@/app/components/global/date/FancyDate'; // ✅ import your FancyDate component
 
 export type AuthorInfoProps = {
   user_id: number;

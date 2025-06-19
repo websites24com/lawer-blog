@@ -1,6 +1,6 @@
 'use client';
 
-import ImageWithFallback from '@/app/components/ImageWithFallback';
+import ImageWithFallback from '@/app/components/global/ImageWithFallback';
 import type { PostWithDetails } from '@/app/lib/definitions';
 
 export default function PostContent({ post }: { post: PostWithDetails }) {

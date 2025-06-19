@@ -1,10 +1,10 @@
 import { notFound } from 'next/navigation';
-import ImageWithFallback from '@/app/components/ImageWithFallback';
-import FancyDate from '@/app/components/FancyDate';
-import TimeFromDate from '@/app/components/TimeFromDate';
-import RenderPhone from '@/app/components/RenderPhone';
-import RenderEmail from '@/app/components/RenderEmail';
-import RenderWebsite from '@/app/components/RenderWebsite';
+import ImageWithFallback from '@/app/components/global/ImageWithFallback';
+import FancyDate from '@/app/components/global/date/FancyDate';
+import TimeFromDate from '@/app/components/global/date/TimeFromDate';
+import RenderPhone from '@/app/components/global/RenderPhone';
+import RenderEmail from '@/app/components/global/RenderEmail';
+import RenderWebsite from '@/app/components/global/RenderWebsite';
 import FollowUserButton from '@/app/components/FollowUserButton';
 import { getUserBySlug } from '@/app/lib/users';
 import { auth } from '@/app/lib/auth';

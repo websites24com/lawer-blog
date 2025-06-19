@@ -3,7 +3,7 @@ import { Providers } from './providers';
 import { Metadata } from 'next';
 import { Toaster } from 'react-hot-toast';
 import { ThemeProvider } from 'next-themes';
-import Header from '@/app/components/Header'; // 👈 import your header
+import Header from '@/app/components/layout/Header'; // 👈 import your header
 
 export const metadata: Metadata = {
   title: {

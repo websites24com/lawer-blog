@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import ImageWithFallback from '@/app/components/ImageWithFallback';
+import ImageWithFallback from '@/app/components/global/ImageWithFallback';
 import { getAllUsers } from '@/app/lib/users';
 import type { SimpleUser } from '@/app/lib/definitions';
 

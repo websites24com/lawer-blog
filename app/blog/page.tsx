@@ -2,8 +2,8 @@ import { auth } from '@/app/lib/auth';
 import { getAllApprovedPosts } from '@/app/lib/posts';
 import type { PostSummary } from '@/app/lib/definitions';
 import FollowButton from '@/app/components/posts/FollowPostButton';
-import ImageWithFallback from '@/app/components/ImageWithFallback';
-import FancyDate from '@/app/components/FancyDate';
+import ImageWithFallback from '@/app/components/global/ImageWithFallback';
+import FancyDate from '@/app/components/global/date/FancyDate';
 import Link from 'next/link';
 
 function stripHtml(html: string): string {

@@ -4,7 +4,7 @@ import Cropper from 'react-easy-crop';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import getCroppedImg from '@/app/utils/postImages/cropImage';
-import Spinner from '@/app/components/Spinner'; // ✅ Your Spinner component
+import Spinner from '@/app/components/global/Spinner'; // ✅ Spinner component
 
 import type { Area } from 'react-easy-crop';
 
@@ -12,27 +12,29 @@ type Props = {
   file: File;
   onClose: () => void;
   onUploadSuccess: (url: string) => void;
-  currentPhotoUrl: string;
+  currentAvatarUrl: string;
 };
 
-export default function ImageCropModal({ file, onClose, onUploadSuccess, currentPhotoUrl }: Props) {
+export default function AvatarCropModal({
+  file,
+  onClose,
+  onUploadSuccess,
+  currentAvatarUrl,
+}: Props) {
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
-  const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
   const [isCropped, setIsCropped] = useState(false);
   const [croppedBlob, setCroppedBlob] = useState<Blob | null>(null);
-  const [isUploading, setIsUploading] = useState(false); // ✅ upload state lock
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [isUploading, setIsUploading] = useState(false); // ✅ Prevent multiple clicks
+
   const localUrl = useRef(URL.createObjectURL(file)).current;
-  const [cropDimensions, setCropDimensions] = useState<{ width: number; height: number } | null>(null);
 
   useEffect(() => {
     const img = new Image();
     img.src = localUrl;
     img.onload = () => {
-      setImageSize({ width: img.naturalWidth, height: img.naturalHeight });
-      const defaultZoom = Math.max(1200 / img.naturalWidth, 800 / img.naturalHeight);
+      const defaultZoom = Math.max(300 / img.naturalWidth, 300 / img.naturalHeight);
       setZoom(defaultZoom);
     };
     document.body.style.overflow = 'hidden';
@@ -43,10 +45,6 @@ export default function ImageCropModal({ file, onClose, onUploadSuccess, current
 
   const handleCropComplete = useCallback((_: Area, croppedPixels: Area) => {
     setCroppedAreaPixels(croppedPixels);
-    setCropDimensions({
-      width: Math.round(croppedPixels.width),
-      height: Math.round(croppedPixels.height),
-    });
   }, []);
 
   const handleCropNow = async () => {
@@ -54,11 +52,12 @@ export default function ImageCropModal({ file, onClose, onUploadSuccess, current
       toast.error('No crop area defined');
       return;
     }
+
     try {
-      const cropped = await getCroppedImg(localUrl, croppedAreaPixels, 1200, 800);
+      const cropped = await getCroppedImg(localUrl, croppedAreaPixels, 300, 300);
       setCroppedBlob(cropped);
       setIsCropped(true);
-      toast.success('Image cropped');
+      toast.success('Avatar cropped');
     } catch (err) {
       console.error(err);
       toast.error('Crop failed');
@@ -66,78 +65,78 @@ export default function ImageCropModal({ file, onClose, onUploadSuccess, current
   };
 
   const handleUpload = async () => {
-    if (isUploading) return; // ✅ Prevent double click
-
+    if (isUploading) return; // ✅ Stop if already uploading
     if (!croppedBlob) {
       toast.error('No cropped image to upload');
       return;
     }
 
+    setIsUploading(true); // ✅ Lock UI
+    const formData = new FormData();
+    formData.append('avatar', croppedBlob, 'avatar.webp');
+
     try {
-      setIsUploading(true); // ✅ Lock
-
-      const formData = new FormData();
-      formData.append('image', croppedBlob, 'cropped-image.webp');
-
-      const res = await fetch('/api/user/posts/editor/upload-image', {
+      const res = await fetch('/api/avatar', {
         method: 'POST',
         body: formData,
       });
 
       const text = await res.text();
       let data: any;
+
       try {
         data = JSON.parse(text);
-      } catch (parseErr) {
-        console.error('❌ Failed to parse JSON:', parseErr);
-        toast.error('Server returned invalid JSON');
+      } catch {
+        toast.error('Invalid server response');
         return;
       }
 
       if (res.ok) {
-        toast.success('Image uploaded');
+        toast.success('Avatar uploaded');
 
-        // ✅ Delete previous photo unless it's default
-        if (currentPhotoUrl && !currentPhotoUrl.includes('/uploads/posts/default.jpg')) {
+        // ✅ Delete old avatar unless fallback
+        if (
+          currentAvatarUrl &&
+          !currentAvatarUrl.includes('/uploads/avatars/default.jpg')
+        ) {
           try {
-            await fetch('/api/user/posts/delete-photo', {
+            await fetch('/api/avatar/delete', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ photoPath: currentPhotoUrl }),
+              body: JSON.stringify({ url: currentAvatarUrl }),
             });
           } catch (err) {
-            console.error('❌ Failed to delete old photo:', err);
+            console.error('❌ Failed to delete old avatar:', err);
           }
         }
 
         onUploadSuccess(data.url);
         onClose();
       } else {
-        toast.error(data.error || 'Upload failed');
+        toast.error(data?.error || 'Upload failed');
       }
     } catch (err) {
-      console.error('❌ Upload failed:', err);
-      toast.error('Upload failed');
+      console.error(err);
+      toast.error('Upload error');
     } finally {
-      setIsUploading(false); // ✅ Unlock
+      setIsUploading(false); // ✅ Unlock UI
     }
   };
 
   return (
     <div className="image-crop-modal">
-      <div className="modal-content" ref={containerRef}>
+      <div className="modal-content">
         <div className="crop-container">
           <Cropper
             image={localUrl}
             crop={crop}
             zoom={zoom}
-            aspect={3 / 2}
+            aspect={1}
             onCropChange={setCrop}
             onZoomChange={setZoom}
             onCropComplete={handleCropComplete}
-            restrictPosition={false}
-            cropShape="rect"
-            showGrid={true}
+            cropShape="round"
+            showGrid={false}
           />
         </div>
 
@@ -150,19 +149,8 @@ export default function ImageCropModal({ file, onClose, onUploadSuccess, current
           onChange={(e) => setZoom(Number(e.target.value))}
         />
 
-        {imageSize && (
-          <div className="crop-meta">
-            Original: {imageSize.width}×{imageSize.height}
-            <br />
-            Crop Area: {cropDimensions?.width || 0}×{cropDimensions?.height || 0}
-            <br />
-            Output Size: 1200×800
-          </div>
-        )}
-
         <div className="modal-actions">
           <button type="button" onClick={handleCropNow} disabled={isUploading}>Crop</button>
-
           <button
             type="button"
             onClick={handleUpload}
@@ -170,7 +158,6 @@ export default function ImageCropModal({ file, onClose, onUploadSuccess, current
           >
             {isUploading ? <Spinner /> : 'Upload'}
           </button>
-
           <button type="button" onClick={onClose} disabled={isUploading}>Cancel</button>
         </div>
       </div>

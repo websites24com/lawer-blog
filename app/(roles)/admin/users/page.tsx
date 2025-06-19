@@ -5,9 +5,9 @@ import { useRouter } from 'next/navigation';
 import { getAllUsers, updateUserStatus, deleteUser } from '@/app/actions/admin-users';
 import type { UserSummary } from '@/app/lib/definitions';
 import toast from 'react-hot-toast';
-import ActionButton from '@/app/components/ActionButton';
-import ConfirmDeleteDialog from '@/app/components/ConfirmDeleteDialog';
-import ImageWithFallback from '@/app/components/ImageWithFallback';
+import ActionButton from '@/app/components/global/ActionButton';
+import ConfirmDeleteDialog from '@/app/components/global/ConfirmDeleteDialog';
+import ImageWithFallback from '@/app/components/global/ImageWithFallback';
 
 const PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50];
 

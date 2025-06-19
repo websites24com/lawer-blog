@@ -2,9 +2,9 @@
 
 import { useEffect, useState, useTransition, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import ActionButton from '@/app/components/ActionButton';
-import ImageWithFallback from '@/app/components/ImageWithFallback';
-import RichTextEditor from '@/app/components/RichTextEditor';
+import ActionButton from '@/app/components/global/ActionButton';
+import ImageWithFallback from '@/app/components/global/ImageWithFallback';
+import RichTextEditor from '@/app/components/global/RichTextEditor';
 
 let previewWindow: Window | null = null;
 

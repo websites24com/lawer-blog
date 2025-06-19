@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import { followPost, unfollowPost } from '@/app/actions/posts';
 import { useSession } from 'next-auth/react';
-import ActionButton from '../ActionButton';
+import ActionButton from '../global/ActionButton';
 
 type Props = {
   postId: number;

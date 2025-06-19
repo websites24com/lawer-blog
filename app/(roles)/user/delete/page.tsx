@@ -5,9 +5,9 @@ import { signOut } from 'next-auth/react';
 import { useState, useTransition } from 'react';
 import toast from 'react-hot-toast';
 
-import Spinner from '@/app/components/Spinner';
-import ActionButton from '@/app/components/ActionButton';
-import ConfirmDeleteDialog from '@/app/components/ConfirmDeleteDialog';
+import Spinner from '@/app/components/global/Spinner';
+import ActionButton from '@/app/components/global/ActionButton';
+import ConfirmDeleteDialog from '@/app/components/global/ConfirmDeleteDialog';
 
 export default function DeleteUserPage() {
   const router = useRouter();
