@@ -5,7 +5,7 @@ import TimeFromDate from '@/app/components/global/date/TimeFromDate';
 import RenderPhone from '@/app/components/global/RenderPhone';
 import RenderEmail from '@/app/components/global/RenderEmail';
 import RenderWebsite from '@/app/components/global/RenderWebsite';
-import FollowUserButton from '@/app/components/FollowUserButton';
+import FollowUserButton from '@/app/components/user/FollowUserButton';
 import { getUserBySlug } from '@/app/lib/users';
 import { auth } from '@/app/lib/auth';
 import { formatOrDash } from '@/app/utils/formatOrDash';

@@ -1,20 +1,32 @@
 import { auth } from '@/app/lib/auth';
-import { getAllApprovedPosts } from '@/app/lib/posts';
+import { getAllApprovedPosts, getApprovedPostCount } from '@/app/lib/posts';
 import type { PostSummary } from '@/app/lib/definitions';
 import FollowButton from '@/app/components/posts/FollowPostButton';
 import ImageWithFallback from '@/app/components/global/ImageWithFallback';
 import FancyDate from '@/app/components/global/date/FancyDate';
+import Pagination from '@/app/components/global/pagination/Pagination';
 import Link from 'next/link';
 
+// Helper to clean HTML tags from excerpt
 function stripHtml(html: string): string {
   return html.replace(/<[^>]*>?/gm, '');
 }
 
-export default async function BlogPage() {
-  const session = await auth(); // ✅ Get session
-  const userId = session?.user?.id || 0; // ✅ Extract user ID
+// Blog page with server-side pagination
+export default async function BlogPage({
+  searchParams,
+}: {
+  searchParams?: { page?: string };
+}) {
+  const session = await auth();
+  const userId = session?.user?.id || 0;
 
-  const posts: PostSummary[] = await getAllApprovedPosts(userId); // ✅ Pass userId
+  const currentPage = Number(searchParams?.page) || 1;
+  const pageSize = 3;
+
+  const posts: PostSummary[] = await getAllApprovedPosts(userId, currentPage, pageSize);
+  const totalPosts = await getApprovedPostCount();
+  const totalPages = Math.ceil(totalPosts / pageSize);
 
   return (
     <main>
@@ -28,15 +40,7 @@ export default async function BlogPage() {
             <Link href={`/blog/${post.slug}`}>
               <div style={{ borderBottom: '1px solid #ccc', padding: '1rem 0' }}>
                 {post.featured_photo && (
-                  <div
-                    style={{
-                      width: '100%',
-                      maxWidth: '300px',
-                      height: '200px',
-                      position: 'relative',
-                      marginTop: '1rem',
-                    }}
-                  >
+                  <div className="image-wrapper">
                     <ImageWithFallback
                       src={post.featured_photo}
                       alt="Featured Post"
@@ -58,7 +62,6 @@ export default async function BlogPage() {
               {post.user.first_name} {post.user.last_name}
             </p>
 
-            {/* ✅ Pass ID and follow state */}
             <FollowButton
               postId={post.id}
               initiallyFollowing={post.followed_by_current_user}
@@ -68,6 +71,13 @@ export default async function BlogPage() {
           </li>
         ))}
       </ul>
+
+      {/* ✅ PAGINATION with SCSS styles */}
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        basePath="/blog"
+      />
     </main>
   );
 }

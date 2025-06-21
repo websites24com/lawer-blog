@@ -1,10 +1,12 @@
+export const revalidate = 60; // ✅ Enable ISR (Incremental Static Regeneration)
+
 import { getPostBySlug } from '@/app/lib/posts';
 import { auth } from '@/app/lib/auth';
 import ImageWithFallback from '@/app/components/global/ImageWithFallback';
 import FollowButton from '@/app/components/posts/FollowPostButton';
 import AuthorInfo from '@/app/components/user/AuthorInfo';
-import CommentForm from '@/app/components/comments/CommentForm';
 import Comments from '@/app/components/comments/Comments';
+import StructuredData from '@/app/components/global/seo/StructuredData';
 
 import type { Metadata } from 'next';
 
@@ -14,27 +16,33 @@ type PageProps = {
   };
 };
 
+// ✅ Dynamic SEO Metadata with comment count
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const session = await auth();
   const userId = session?.user?.id ?? 0;
-
   const post = await getPostBySlug(params.slug, userId);
+  const commentCount = post?.comments?.length || 0;
 
   return {
     title: post?.title || 'Post Not Found',
-    description: post?.excerpt || '',
+    description: `${post?.excerpt || 'Read the full article'} — 💬 ${commentCount} comment(s)`,
+    openGraph: {
+      title: post?.title,
+      description: `${post?.excerpt || 'Read the full article'} — 💬 ${commentCount} comment(s)`,
+    },
   };
 }
 
 export default async function BlogPostPage({ params }: PageProps) {
   const session = await auth();
   const userId = session?.user?.id ?? 0;
-
   const post = await getPostBySlug(params.slug, userId);
 
   if (!post) {
     return <div><h1>404 - Post Not Found</h1></div>;
   }
+
+  const commentCount = post.comments?.length || 0;
 
   return (
     <main style={{ padding: '2rem', maxWidth: '900px', margin: '0 auto' }}>
@@ -75,14 +83,12 @@ export default async function BlogPostPage({ params }: PageProps) {
         style={{ lineHeight: '1.7', marginTop: '2rem' }}
       />
 
+      {/* ✅ Inject SEO Structured Data (JSON-LD) */}
+      <StructuredData post={post} />
+
       <section style={{ marginTop: '3rem' }}>
-        { /* <h2>💬 Comments ({post.comments?.length || 0})</h2> */ }
-
-        {/* ✅ Nested comments with user info */}
+        {/* 💬 Comments */}
         <Comments comments={post.comments || []} postId={post.id} />
-
-
-        
       </section>
     </main>
   );

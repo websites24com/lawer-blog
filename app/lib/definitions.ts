@@ -35,17 +35,35 @@ export type PostSummary = {
   featured_photo: string | null;
 };
 
+type PaginationParams = {
+  postsPage?: number;
+  commentsPage?: number;
+  followersPage?: number;
+  followedPage?: number;
+  pageSize?: number;
+};
+
+
 export type Comment = {
   id: number;
   post_id: number;
-  user_id: number;
-  message: string;
   parent_id: number | null;
-  status: 'pending' | 'approved' | 'declined';
+  message: string;
   created_at: string;
-  edited_by: number | null;
-  edited_at: string | null;
+  status?: 'pending' | 'approved' | 'declined';
+  edited_by?: number | null;
+  edited_at?: string | null;
+
+  // 👇 Required for showing post info in user profile
+  post_slug: string;
+  post_title?: string;
+
+  // 👇 Optional: if you're showing user info inside comments
+  first_name?: string;
+  last_name?: string;
+  avatar_url?: string;
 };
+
 
 export type CommentWithUser = {
   id: number;

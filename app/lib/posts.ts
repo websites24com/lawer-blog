@@ -1,8 +1,18 @@
-import { db } from '@/app/lib/db';
-import type { PostSummary, PostWithDetails } from '@/app/lib/definitions';
+
 
 // ✅ Public - Approved posts
-export async function getAllApprovedPosts(userId?: number): Promise<PostSummary[]> {
+import { db } from '@/app/lib/db';
+import type { PostSummary } from '@/app/lib/definitions';
+
+export async function getAllApprovedPosts(
+  userId?: number,
+  page: number = 1,
+  pageSize: number = 10
+): Promise<PostSummary[]> {
+  // Calculate offset
+  const offset = (page - 1) * pageSize;
+  const limit = pageSize;
+
   const [rows] = await db.query<any[]>(
     `
     SELECT 
@@ -30,7 +40,9 @@ export async function getAllApprovedPosts(userId?: number): Promise<PostSummary[
     LEFT JOIN users ON posts.user_id = users.id
     WHERE posts.status = 'approved'
     ORDER BY posts.created_at DESC
-    `
+    LIMIT ? OFFSET ?
+    `,
+    [limit, offset] // ✅ These fill in the LIMIT and OFFSET placeholders
   );
 
   return rows.map((row) => ({
@@ -51,6 +63,12 @@ export async function getAllApprovedPosts(userId?: number): Promise<PostSummary[
     },
   }));
 }
+
+export async function getApprovedPostCount(): Promise<number> {
+  const [rows] = await db.query('SELECT COUNT(*) as count FROM posts WHERE status = "approved"');
+  return rows[0].count;
+}
+
 
 // ✅ To user dashboard - All posts
 export async function getAllPosts(userId: number): Promise<PostSummary[]> {

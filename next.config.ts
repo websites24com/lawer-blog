@@ -6,26 +6,24 @@ const nextConfig: NextConfig = {
     includePaths: [path.join(__dirname, 'app/styles')],
   },
   images: {
-  domains: ['lh3.googleusercontent.com', 'platform-lookaside.fbsbx.com'],
-  remotePatterns: [
-    {
-      protocol: 'https',
-      hostname: 'lh3.googleusercontent.com',
-    },
-    {
-      protocol: 'https',
-      hostname: 'platform-lookaside.fbsbx.com',
-    },
-  ],
-  // ✅ Add local pattern support for optimization:
-  dangerouslyAllowSVG: true,
-  contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
-  // deviceSizes: [640, 768, 1024, 1280, 1600],
-  // imageSizes: [16, 32, 48, 64, 96, 128, 256, 512],
-  // ✅ Enable static optimization for /uploads/*
-  loader: 'default',
-},
-
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'lh3.googleusercontent.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'platform-lookaside.fbsbx.com',
+      },
+    ],
+    // ✅ Add local pattern support for optimization:
+    dangerouslyAllowSVG: true,
+    contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
+    // deviceSizes: [640, 768, 1024, 1280, 1600],
+    // imageSizes: [16, 32, 48, 64, 96, 128, 256, 512],
+    // ✅ Enable static optimization for /uploads/*
+    loader: 'default',
+  },
 };
 
 export default nextConfig;

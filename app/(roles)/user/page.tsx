@@ -12,14 +12,19 @@ import FollowPostButton from '@/app/components/posts/FollowPostButton';
 import ActionButton from '@/app/components/global/ActionButton';
 import Spinner from '@/app/components/global/Spinner';
 import FancyDate from '@/app/components/global/date/FancyDate';
+import TimeFromDate from '@/app/components/global/date/TimeFromDate';
+import RenderWebsite from '@/app/components/global/RenderWebsite';
+import RenderPhone from '@/app/components/global/RenderPhone';
+import RenderEmail from '@/app/components/global/RenderEmail';
 import { unfollowPost } from '@/app/actions/posts';
+import { formatOrDash } from '@/app/utils/formatOrDash';
+
+import CommentEditForm from '@/app/components/comments/CommentEditForm';
+import CommentDeleteButton from '@/app/components/comments/CommentDeleteButton';
+import CommentsPagination from '@/app/components/comments/CommentsPagination';
+import PaginatedList from '@/app/components/global/pagination/PaginatedList';
 
 import type { UserRow, PostSummary, Comment, SimpleUser } from '@/app/lib/definitions';
-import RenderWebsite from '@/app/components/global/RenderWebsite';
-import TimeFromDate from '@/app/components/global/date/TimeFromDate';
-import RenderPhone from '@/app/components/global/RenderPhone';
-import { formatOrDash } from '@/app/utils/formatOrDash';
-import RenderEmail from '@/app/components/global/RenderEmail';
 
 type FullUserData = UserRow & {
   posts: PostSummary[];
@@ -35,26 +40,34 @@ export default function UserPage() {
   const [loading, setLoading] = useState(true);
   const [isPending, startTransition] = useTransition();
 
+  const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
+  const [commentPage, setCommentPage] = useState(1);
+  const commentsPerPage = 5;
+
+  const fetchUserData = async () => {
+    if (!session || !session.user) return;
+
+    const query = session.user.email
+      ? `email=${encodeURIComponent(session.user.email)}`
+      : session.user.provider_account_id
+      ? `providerId=${encodeURIComponent(session.user.provider_account_id)}`
+      : '';
+
+    if (!query) return;
+
+    try {
+      const res = await fetch(`/api/user?${query}`);
+      if (!res.ok) throw new Error('Failed to fetch user data');
+      const data = await res.json();
+      setUserData(data);
+    } catch {
+      toast.error('Failed to refresh user data');
+    }
+  };
+
   useEffect(() => {
     if (status === 'authenticated' && session?.user) {
-      const query = session.user.email
-        ? `email=${encodeURIComponent(session.user.email)}`
-        : session.user.provider_account_id
-        ? `providerId=${encodeURIComponent(session.user.provider_account_id)}`
-        : '';
-
-      if (!query) return;
-
-      fetch(`/api/user?${query}`)
-        .then((res) => res.json())
-        .then((data) => {
-          setUserData(data);
-          setLoading(false);
-        })
-        .catch((err) => {
-          console.error('❌ Failed to fetch user data:', err);
-          setLoading(false);
-        });
+      fetchUserData().then(() => setLoading(false));
     }
   }, [status, session]);
 
@@ -65,7 +78,6 @@ export default function UserPage() {
   }
   if (!userData) return <p>Error loading user data.</p>;
 
-  // ✅ Ensure correct avatar display for uploads, external URLs, and fallback
   const resolvedAvatarUrl =
     userData.avatar_url?.startsWith('http') || userData.avatar_url?.startsWith('/uploads/avatars/')
       ? userData.avatar_url
@@ -76,16 +88,10 @@ export default function UserPage() {
       try {
         await unfollowPost(postId);
         setUserData((prev) =>
-          prev
-            ? {
-                ...prev,
-                followed_posts: prev.followed_posts.filter((p) => p.id !== postId),
-              }
-            : prev
+          prev ? { ...prev, followed_posts: prev.followed_posts.filter((p) => p.id !== postId) } : prev
         );
         toast.success('Post unfollowed');
-      } catch (err) {
-        console.error('❌ Failed to unfollow post', err);
+      } catch {
         toast.error('Failed to unfollow post');
       }
     });
@@ -101,17 +107,13 @@ export default function UserPage() {
           onClick: () => {
             startTransition(async () => {
               try {
-                const res = await fetch(`/api/user/posts/delete/${postId}`, {
-                  method: 'DELETE',
-                });
-                if (!res.ok) throw new Error('Failed to delete post');
-
+                const res = await fetch(`/api/user/posts/delete/${postId}`, { method: 'DELETE' });
+                if (!res.ok) throw new Error();
                 setUserData((prev) =>
                   prev ? { ...prev, posts: prev.posts.filter((p) => p.id !== postId) } : prev
                 );
                 toast.success('Post deleted');
-              } catch (err) {
-                console.error('❌ Failed to delete post', err);
+              } catch {
                 toast.error('Failed to delete post');
               }
             });
@@ -121,6 +123,12 @@ export default function UserPage() {
       ],
     });
   };
+
+  const totalPages = Math.ceil(userData.comments.length / commentsPerPage);
+  const paginatedComments = userData.comments.slice(
+    (commentPage - 1) * commentsPerPage,
+    commentPage * commentsPerPage
+  );
 
   return (
     <div className="user-profile-container">
@@ -158,14 +166,18 @@ export default function UserPage() {
         </div>
       </div>
 
+      {/* My Posts */}
       <div className="user-section">
         <h2>📝 My Posts</h2>
         <ActionButton onClick={() => router.push('/blog/create')} title="Create a new blog post">
           ➕ Create Post
         </ActionButton>
         {userData.posts?.length > 0 ? (
-          <ul style={{ listStyle: 'none', padding: 0 }}>
-            {userData.posts.map((post) => (
+          <PaginatedList
+            items={userData.posts}
+          
+            noItemsMessage="You haven’t published any posts."
+            renderItem={(post) => (
               <li key={post.id} style={{ marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid #ccc' }}>
                 <div style={{ maxWidth: '300px', marginBottom: '0.5rem' }}>
                   <ImageWithFallback
@@ -178,23 +190,27 @@ export default function UserPage() {
                 </div>
                 <strong>{post.title}</strong> ({post.status})
                 <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                  <ActionButton onClick={() => router.push(`/blog/${post.slug}`)} title="View this post">👁️ View</ActionButton>
-                  <ActionButton onClick={() => router.push(`/blog/edit/${post.slug}`)} title="Edit this post">✏️ Edit</ActionButton>
-                  <ActionButton onClick={() => handleDeletePost(post.id)} title="Delete this post">🗑️ Delete</ActionButton>
+                  <ActionButton onClick={() => router.push(`/blog/${post.slug}`)}>👁️ View</ActionButton>
+                  <ActionButton onClick={() => router.push(`/blog/edit/${post.slug}`)}>✏️ Edit</ActionButton>
+                  <ActionButton onClick={() => handleDeletePost(post.id)}>🗑️ Delete</ActionButton>
                 </div>
               </li>
-            ))}
-          </ul>
+            )}
+          />
         ) : (
           <p>You haven’t published any posts.</p>
         )}
       </div>
 
+      {/* Followed Posts */}
       <div className="user-section">
         <h2>⭐ Followed Posts</h2>
         {userData.followed_posts?.length > 0 ? (
-          <ul>
-            {userData.followed_posts.map((post) => (
+          <PaginatedList
+            items={userData.followed_posts}
+           
+            noItemsMessage="You haven’t followed any posts yet."
+            renderItem={(post) => (
               <li key={post.id}>
                 <div style={{ maxWidth: '300px', marginBottom: '0.5rem' }}>
                   <ImageWithFallback
@@ -208,37 +224,77 @@ export default function UserPage() {
                 <a href={`/blog/${post.slug}`} target="_blank" rel="noopener noreferrer">{post.title}</a>
                 <FollowPostButton postId={post.id} initiallyFollowing={true} onUnfollow={() => handleUnfollow(post.id)} />
               </li>
-            ))}
-          </ul>
+            )}
+          />
         ) : (
           <p>You haven’t followed any posts yet.</p>
         )}
       </div>
 
+      {/* Comments */}
       <div className="user-section">
         <h2>🗨️ My Comments</h2>
-        {userData.comments?.length > 0 ? (
-          <ul style={{ listStyle: 'none', padding: 0 }}>
-            {userData.comments.map((comment, idx) => (
-              <li key={idx} style={{ marginBottom: '1.5rem', borderBottom: '1px solid #ddd', paddingBottom: '1rem' }}>
-                <p style={{ marginBottom: '0.5rem' }}>
-                  <strong>{comment.name}</strong>{' '}
-                  <span style={{ color: '#666' }}>— <FancyDate dateString={comment.created_at} /></span>
-                </p>
-                <p style={{ whiteSpace: 'pre-wrap' }}>{comment.message}</p>
-              </li>
-            ))}
-          </ul>
+        {userData.comments.length > 0 ? (
+          <>
+            <ul style={{ listStyle: 'none', padding: 0 }}>
+              {paginatedComments.map((comment) => {
+                const isEditing = editingCommentId === comment.id;
+                return (
+                  <li key={comment.id} style={{ marginBottom: '1.5rem', borderBottom: '1px solid #ddd', paddingBottom: '1rem' }}>
+                    <p style={{ marginBottom: '0.5rem' }}>
+                      <strong>{comment.name}</strong> — <FancyDate dateString={comment.created_at} />
+                    </p>
+
+                    {isEditing ? (
+                      <CommentEditForm
+                        commentId={comment.id}
+                        initialContent={comment.message}
+                        onCancel={() => setEditingCommentId(null)}
+                        onSuccess={fetchUserData}
+                      />
+                    ) : (
+                      <>
+                        <p style={{ whiteSpace: 'pre-wrap' }}>{comment.message}</p>
+                        {comment.post_slug && (
+                          <p style={{ marginTop: '0.25rem', fontStyle: 'italic' }}>
+                            Comment on: <a href={`/blog/${comment.post_slug}`} target="_blank" rel="noopener noreferrer">🔗 {comment.post_title}</a>
+                          </p>
+                        )}
+                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          <ActionButton onClick={() => setEditingCommentId(comment.id)}>✏️ Edit</ActionButton>
+                          <CommentDeleteButton commentId={comment.id} onDeleted={fetchUserData} />
+                          {comment.post_slug && (
+                            <ActionButton onClick={() => window.open(`/blog/${comment.post_slug}`, '_blank')}>
+                              👁️ View Post
+                            </ActionButton>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+            <CommentsPagination
+              currentPage={commentPage}
+              totalPages={totalPages}
+              onPageChange={setCommentPage}
+            />
+          </>
         ) : (
           <p>You haven’t posted any comments yet.</p>
         )}
       </div>
 
+      {/* Followers */}
       <div className="user-section">
         <h2>👥 Followers</h2>
         {userData.followers?.length > 0 ? (
-          <ul>
-            {userData.followers.map((follower) => {
+          <PaginatedList
+            items={userData.followers}
+           
+            noItemsMessage="No followers yet."
+            renderItem={(follower) => {
               const avatar =
                 follower.avatar_url?.startsWith('http') || follower.avatar_url?.startsWith('/uploads/avatars/')
                   ? follower.avatar_url
@@ -258,8 +314,8 @@ export default function UserPage() {
                   <a href={`/users/${follower.slug}`}>{follower.first_name} {follower.last_name}</a>
                 </li>
               );
-            })}
-          </ul>
+            }}
+          />
         ) : (
           <p>No followers yet.</p>
         )}

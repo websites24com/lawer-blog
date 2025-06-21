@@ -5,7 +5,7 @@
 import { useState, useEffect, useTransition } from 'react';
 import { useSession } from 'next-auth/react';
 import { followUser, unfollowUser } from '@/app/actions/user'; // ✅ server actions
-import ActionButton from './ActionButton'; // ✅ Reusable button component
+import ActionButton from '@/app/components/global/ActionButton'; // ✅ Reusable button component
 
 type Props = {
   followedId: number;           // ID of the user to follow/unfollow

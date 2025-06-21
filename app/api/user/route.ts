@@ -1,5 +1,6 @@
+// app/api/user/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserWithDetails } from '@/app/lib/users';
+import { getUserWithDetailsPaginated } from '@/app/lib/users'; // <-- NEW version of query function
 
 export async function GET(req: NextRequest) {
   try {
@@ -7,8 +8,9 @@ export async function GET(req: NextRequest) {
     const email = searchParams.get('email') || undefined;
     const providerId = searchParams.get('providerId') || undefined;
 
-    // ✅ Add full log context for easier debugging
-    // console.log('🔍 Incoming user query:', { email, providerId });
+    const commentPage = parseInt(searchParams.get('commentPage') || '1', 10);
+    const limit = parseInt(searchParams.get('limit') || '5', 10);
+    const offset = (commentPage - 1) * limit;
 
     if (!email && !providerId) {
       return NextResponse.json(
@@ -17,23 +19,22 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const userData = await getUserWithDetails({ email, providerId });
+    const userData = await getUserWithDetailsPaginated({ email, providerId, offset, limit });
 
     if (!userData) {
       console.warn('⚠️ No user found for given query');
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // ✅ Ensure consistent response shape
     const payload = {
       ...userData,
       posts: userData.posts || [],
       comments: userData.comments || [],
       followed_posts: userData.followed_posts || [],
       followers: userData.followers || [],
+      totalComments: userData.totalComments || 0, // <== IMPORTANT
     };
 
-    // console.log('📦 Sending user dashboard payload:', payload);
     return NextResponse.json(payload);
   } catch (err) {
     console.error('❌ Failed to load user data:', err);

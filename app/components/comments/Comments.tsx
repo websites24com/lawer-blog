@@ -9,13 +9,14 @@ import ImageWithFallback from '@/app/components/global/ImageWithFallback';
 import FancyDate from '@/app/components/global/date/FancyDate';
 import TimeFromDate from '@/app/components/global/date/TimeFromDate';
 import ActionButton from '@/app/components/global/ActionButton';
+
 import CommentForm from '@/app/components/comments/CommentForm';
 import CommentReplyForm from '@/app/components/comments/CommentReplyForm';
 import CommentEditForm from '@/app/components/comments/CommentEditForm';
 import CommentsPagination from '@/app/components/comments/CommentsPagination';
+import CommentDeleteButton from '@/app/components/comments/CommentDeleteButton';
 
 import type { Comment, SimpleUser } from '@/app/lib/definitions';
-import CommentDeleteButton from './CommentDeleteButton';
 
 const COMMENTS_PER_PAGE = 5;
 
@@ -41,6 +42,7 @@ export default function Comments({ comments: initialData, postId }: Props) {
   const [replyingToId, setReplyingToId] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [collapsedReplies, setCollapsedReplies] = useState<{ [key: number]: boolean }>({});
 
   useEffect(() => {
     setComments(initialData);
@@ -64,24 +66,12 @@ export default function Comments({ comments: initialData, postId }: Props) {
     }
   };
 
-  const flattenVisible = (comments: CommentWithUser[]): CommentWithUser[] => {
-    const all: CommentWithUser[] = [];
-    for (const comment of comments) {
-      if (isVisible(comment)) {
-        all.push(comment);
-        all.push(...comment.replies.filter(isVisible));
-      }
-    }
-    return all;
+  const toggleReplies = (commentId: number) => {
+    setCollapsedReplies((prev) => ({
+      ...prev,
+      [commentId]: !prev[commentId],
+    }));
   };
-
-  const paginatedVisible = flattenVisible(comments);
-  const totalVisible = paginatedVisible.length;
-  const totalPages = Math.ceil(totalVisible / COMMENTS_PER_PAGE);
-  const paginated = paginatedVisible.slice(
-    (currentPage - 1) * COMMENTS_PER_PAGE,
-    currentPage * COMMENTS_PER_PAGE
-  );
 
   const renderComment = (comment: CommentWithUser, level = 0): JSX.Element | null => {
     if (!isVisible(comment)) return null;
@@ -156,41 +146,64 @@ export default function Comments({ comments: initialData, postId }: Props) {
                 onSuccess={fetchComments}
               />
             )}
+
+            {comment.replies.length > 0 && (
+              <div className="replies-toggle">
+                <button onClick={() => toggleReplies(comment.id)}>
+                  {collapsedReplies[comment.id] ? 'Hide Replies' : `Show Replies (${comment.replies.length})`}
+                </button>
+                {collapsedReplies[comment.id] && (
+                  <div className="comment-replies">
+                    {comment.replies.map((reply) => renderComment(reply, level + 1))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
-
-        {comment.replies.length > 0 && (
-          <div className="comment-replies">
-            {comment.replies.map((reply) => renderComment(reply, level + 1))}
-          </div>
-        )}
       </div>
     );
   };
 
+  const allVisible = comments.reduce((acc, comment) => {
+    if (isVisible(comment)) {
+      acc.push(comment);
+      acc.push(...comment.replies.filter(isVisible));
+    }
+    return acc;
+  }, [] as CommentWithUser[]);
+
+  const topLevelVisible = comments.filter(
+    (comment) => isVisible(comment) && comment.parent_id === null
+  );
+
+  const totalPages = Math.ceil(topLevelVisible.length / COMMENTS_PER_PAGE);
+  const paginatedTopLevel = topLevelVisible.slice(
+    (currentPage - 1) * COMMENTS_PER_PAGE,
+    currentPage * COMMENTS_PER_PAGE
+  );
+
   return (
     <section className="comments-section">
-      <h2>💬 Comments ({totalVisible})</h2>
+      <h2>💬 Comments ({allVisible.length})</h2>
 
       {!isLoaded ? (
         <Spinner />
       ) : (
         <>
           <div className="comments-list">
-            {paginated.length === 0 ? (
+            {topLevelVisible.length === 0 ? (
               <p>No comments yet.</p>
             ) : (
-              paginated.map((comment) =>
-                renderComment(comment, comment.parent_id ? 1 : 0)
-              )
+              paginatedTopLevel.map((comment) => renderComment(comment))
             )}
           </div>
 
-          {totalPages > 1 && (
+          {allVisible.length > COMMENTS_PER_PAGE && totalPages > 1 && (
             <CommentsPagination
               currentPage={currentPage}
               totalPages={totalPages}
-              onPageChange={setCurrentPage}
+              onPageChange={(page) => setCurrentPage(page)}
             />
           )}
 
