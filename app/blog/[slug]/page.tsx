@@ -16,12 +16,16 @@ type PageProps = {
   };
 };
 
-// ✅ Dynamic SEO Metadata with comment count
+// ✅ Fixed: Safe access to params.slug for dynamic metadata (NO AWAIT!)
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const slug = params.slug; // ✅ no await here
   const session = await auth();
   const userId = session?.user?.id ?? 0;
-  const post = await getPostBySlug(params.slug, userId);
+
+  const post = await getPostBySlug(slug, userId); // ✅ no crash
   const commentCount = post?.comments?.length || 0;
+
+  console.log('✅ Loaded post.tags:', post?.tags);
 
   return {
     title: post?.title || 'Post Not Found',
@@ -82,6 +86,25 @@ export default async function BlogPostPage({ params }: PageProps) {
         dangerouslySetInnerHTML={{ __html: post.content }}
         style={{ lineHeight: '1.7', marginTop: '2rem' }}
       />
+
+      {post.tags && post.tags.length > 0 && (
+        <div style={{ marginTop: '2rem' }}>
+          <strong>Tags: </strong>
+          {post.tags.map((tag) => (
+            <a
+              key={tag}
+              href={`/tags/${encodeURIComponent(tag)}`}
+              style={{
+                marginRight: '0.5rem',
+                color: '#0070f3',
+                textDecoration: 'none',
+              }}
+            >
+              #{tag}
+            </a>
+          ))}
+        </div>
+      )}
 
       {/* ✅ Inject SEO Structured Data (JSON-LD) */}
       <StructuredData post={post} />

@@ -167,40 +167,51 @@ export default function UserPage() {
       </div>
 
       {/* My Posts */}
-      <div className="user-section">
-        <h2>📝 My Posts</h2>
-        <ActionButton onClick={() => router.push('/blog/create')} title="Create a new blog post">
-          ➕ Create Post
-        </ActionButton>
-        {userData.posts?.length > 0 ? (
-          <PaginatedList
-            items={userData.posts}
-          
-            noItemsMessage="You haven’t published any posts."
-            renderItem={(post) => (
-              <li key={post.id} style={{ marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid #ccc' }}>
-                <div style={{ maxWidth: '300px', marginBottom: '0.5rem' }}>
-                  <ImageWithFallback
-                    src={post.featured_photo || '/uploads/posts/default.jpg'}
-                    alt={post.title}
-                    className="fallback-image"
-                    wrapperClassName="image-wrapper"
-                    imageType="post"
-                  />
-                </div>
-                <strong>{post.title}</strong> ({post.status})
-                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                  <ActionButton onClick={() => router.push(`/blog/${post.slug}`)}>👁️ View</ActionButton>
-                  <ActionButton onClick={() => router.push(`/blog/edit/${post.slug}`)}>✏️ Edit</ActionButton>
-                  <ActionButton onClick={() => handleDeletePost(post.id)}>🗑️ Delete</ActionButton>
-                </div>
-              </li>
-            )}
-          />
-        ) : (
-          <p>You haven’t published any posts.</p>
-        )}
-      </div>
+     {/* My Posts */}
+<div className="user-section">
+  <h2>📝 My Posts</h2>
+  <ActionButton onClick={() => router.push('/blog/create')} title="Create a new blog post">
+    ➕ Create Post
+  </ActionButton>
+  {userData.posts?.length > 0 ? (
+    <PaginatedList
+      items={userData.posts}
+      noItemsMessage="You haven’t published any posts."
+      renderItem={(post) => {
+        // ✅ Debugging each post
+        console.log('🧪 DEBUG POST:', post.id, post.slug);
+
+        return (
+          <li
+            key={post.id}
+            style={{ marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid #ccc' }}
+          >
+            <div style={{ maxWidth: '300px', marginBottom: '0.5rem' }}>
+              <ImageWithFallback
+                src={post.featured_photo || '/uploads/posts/default.jpg'}
+                alt={post.title}
+                className="fallback-image"
+                wrapperClassName="image-wrapper"
+                imageType="post"
+              />
+            </div>
+
+            <strong>{post.title}</strong> ({post.status})
+
+            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+              <ActionButton onClick={() => router.push(`/blog/${post.slug}`)}>👁️ View</ActionButton>
+              <ActionButton onClick={() => router.push(`/blog/edit/${post.slug}`)}>✏️ Edit</ActionButton>
+              <ActionButton onClick={() => handleDeletePost(post.id)}>🗑️ Delete</ActionButton>
+            </div>
+          </li>
+        );
+      }}
+    />
+  ) : (
+    <p>You haven’t published any posts.</p>
+  )}
+</div>
+
 
       {/* Followed Posts */}
       <div className="user-section">

@@ -21,6 +21,7 @@ export default function CreatePostForm({ categories }: CreatePostFormProps) {
     content: '',
     category_id: categories[0]?.id.toString() || '1',
     featured_photo: '/uploads/posts/default.jpg',
+    tags: '',
   });
 
   const [photoFile, setPhotoFile] = useState<File | null>(null);
@@ -83,6 +84,7 @@ export default function CreatePostForm({ categories }: CreatePostFormProps) {
         formData.append('content', form.content);
         formData.append('category_id', form.category_id);
         formData.append('featured_photo_url', form.featured_photo);
+        formData.append('tags', form.tags || '');
 
         if (previewWindow && !previewWindow.closed) previewWindow.close();
 
@@ -171,15 +173,44 @@ export default function CreatePostForm({ categories }: CreatePostFormProps) {
         name="excerpt"
         value={form.excerpt}
         onChange={handleChange}
-        placeholder="Brief excerpt (max 300 characters)"
-        maxLength={300}
+        placeholder="Brief excerpt (max 160 characters)"
+        maxLength={160}
         required
       />
-      <small style={{ alignSelf: 'flex-end' }}>{excerptCount}/300}</small>
+      <small style={{ alignSelf: 'flex-end' }}>{excerptCount}/160</small>
 
       <label htmlFor="content">Content:</label>
       <RichTextEditor value={form.content} onChange={handleContentChange} />
-      <small style={{ alignSelf: 'flex-end' }}>{contentCount}/10000}</small>
+      <small style={{ alignSelf: 'flex-end' }}>{contentCount}/10000</small>
+
+      <label htmlFor="tags">Tags (hashtags):</label>
+      <input
+        id="tags"
+        name="tags"
+        value={form.tags || ''}
+        onChange={(e) => {
+          const raw = e.target.value;
+
+          // Split tags, normalize, add # if needed, dedupe, limit to 10
+          const tags = raw
+            .split(/[\s,]+/)
+            .map((tag) => `#${tag.replace(/^#+/, '').toLowerCase()}`)
+            .filter((tag) => tag.length > 1);
+
+          const unique = Array.from(new Set(tags)).slice(0, 10);
+          const formatted = unique.join(' ');
+
+          setForm((prev) => {
+            const updated = { ...prev, tags: formatted };
+            sendPreviewData(updated);
+            return updated;
+          });
+        }}
+        placeholder="Max 10 hashtags, e.g. #law #divorce #rights"
+      />
+      <small style={{ alignSelf: 'flex-end' }}>
+        Separate with spaces – max 10 – must begin with <strong>#</strong>
+      </small>
 
       <label>Category:</label>
       <select name="category_id" value={form.category_id} onChange={handleChange}>

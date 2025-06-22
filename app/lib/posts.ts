@@ -1,15 +1,13 @@
-
-
 // ✅ Public - Approved posts
 import { db } from '@/app/lib/db';
-import type { PostSummary } from '@/app/lib/definitions';
+import type { PostSummary, PostWithDetails } from '@/app/lib/definitions';
 
+// ✅ Get paginated approved posts (for public pages)
 export async function getAllApprovedPosts(
   userId?: number,
   page: number = 1,
   pageSize: number = 10
 ): Promise<PostSummary[]> {
-  // Calculate offset
   const offset = (page - 1) * pageSize;
   const limit = pageSize;
 
@@ -19,7 +17,7 @@ export async function getAllApprovedPosts(
       posts.id,
       posts.slug,
       posts.title,
-      LEFT(posts.content, 200) AS excerpt,
+      posts.excerpt, -- ✅ use excerpt column directly
       posts.created_at,
       posts.featured_photo,
       categories.name AS category,
@@ -27,6 +25,7 @@ export async function getAllApprovedPosts(
       users.last_name,
       users.avatar_url,
       users.slug AS user_slug,
+      GROUP_CONCAT(DISTINCT t.name ORDER BY t.name SEPARATOR ',') AS tags,
       ${
         userId
           ? `EXISTS (
@@ -38,11 +37,14 @@ export async function getAllApprovedPosts(
     FROM posts
     LEFT JOIN categories ON posts.category_id = categories.id
     LEFT JOIN users ON posts.user_id = users.id
+    LEFT JOIN post_tags pt ON posts.id = pt.post_id
+    LEFT JOIN tags t ON pt.tag_id = t.id
     WHERE posts.status = 'approved'
+    GROUP BY posts.id
     ORDER BY posts.created_at DESC
     LIMIT ? OFFSET ?
     `,
-    [limit, offset] // ✅ These fill in the LIMIT and OFFSET placeholders
+    [limit, offset]
   );
 
   return rows.map((row) => ({
@@ -54,6 +56,7 @@ export async function getAllApprovedPosts(
     featured_photo: row.featured_photo,
     category: row.category,
     followed_by_current_user: !!row.followed_by_current_user,
+    tags: row.tags ? row.tags.split(',') : [],
     status: 'approved',
     user: {
       first_name: row.first_name,
@@ -64,13 +67,13 @@ export async function getAllApprovedPosts(
   }));
 }
 
+// ✅ Get approved post count for pagination
 export async function getApprovedPostCount(): Promise<number> {
   const [rows] = await db.query('SELECT COUNT(*) as count FROM posts WHERE status = "approved"');
   return rows[0].count;
 }
 
-
-// ✅ To user dashboard - All posts
+// ✅ Get all posts for a specific user (dashboard)
 export async function getAllPosts(userId: number): Promise<PostSummary[]> {
   const [rows] = await db.query<any[]>(
     `
@@ -79,7 +82,7 @@ export async function getAllPosts(userId: number): Promise<PostSummary[]> {
       posts.slug,
       posts.title,
       posts.status,
-      LEFT(posts.content, 200) AS excerpt,
+      posts.excerpt, -- ✅ use excerpt column directly
       posts.created_at,
       posts.featured_photo,
       categories.name AS category,
@@ -87,6 +90,7 @@ export async function getAllPosts(userId: number): Promise<PostSummary[]> {
       users.last_name,
       users.avatar_url,
       users.slug AS user_slug,
+      GROUP_CONCAT(DISTINCT t.name ORDER BY t.name SEPARATOR ',') AS tags,
       EXISTS (
         SELECT 1 FROM followed_posts 
         WHERE followed_posts.user_id = ? AND followed_posts.post_id = posts.id
@@ -94,8 +98,11 @@ export async function getAllPosts(userId: number): Promise<PostSummary[]> {
     FROM posts
     LEFT JOIN categories ON posts.category_id = categories.id
     LEFT JOIN users ON posts.user_id = users.id
+    LEFT JOIN post_tags pt ON posts.id = pt.post_id
+    LEFT JOIN tags t ON pt.tag_id = t.id
+    GROUP BY posts.id
     ORDER BY posts.created_at DESC
-  `,
+    `,
     [userId]
   );
 
@@ -109,6 +116,7 @@ export async function getAllPosts(userId: number): Promise<PostSummary[]> {
     featured_photo: row.featured_photo,
     category: row.category,
     followed_by_current_user: !!row.followed_by_current_user,
+    tags: row.tags ? row.tags.split(',') : [],
     user: {
       first_name: row.first_name,
       last_name: row.last_name,
@@ -118,13 +126,9 @@ export async function getAllPosts(userId: number): Promise<PostSummary[]> {
   }));
 }
 
-// ✅ Get post with all details for editing or viewing
-// app/lib/posts.ts
-
-
-
+// ✅ Get a single post by slug (for view/edit), includes comments and tags
 export async function getPostBySlug(slug: string, viewerId: number): Promise<PostWithDetails | null> {
-  // ✅ 1. Get main post info
+  // 1. Load main post info
   const [rows] = await db.query(
     `
     SELECT 
@@ -147,6 +151,9 @@ export async function getPostBySlug(slug: string, viewerId: number): Promise<Pos
   const post = (rows as any[])[0];
   if (!post) return null;
 
+  console.log('✅ Loaded post ID:', post.id);
+
+  // Prepare user object
   post.user = {
     first_name: post.first_name,
     last_name: post.last_name,
@@ -159,7 +166,20 @@ export async function getPostBySlug(slug: string, viewerId: number): Promise<Pos
   delete post.user_slug;
   delete post.avatar_url;
 
-  // ✅ 2. Load all comments for this post
+  // 2. Load tags
+  const [tagRows] = await db.query(
+    `
+    SELECT t.name
+    FROM tags t
+    JOIN post_tags pt ON pt.tag_id = t.id
+    WHERE pt.post_id = ?
+    `,
+    [post.id]
+  );
+
+  post.tags = tagRows.map((t: any) => t.name);
+
+  // 3. Load comments
   const [allComments] = await db.query<any[]>(
     `
     SELECT 
@@ -172,7 +192,6 @@ export async function getPostBySlug(slug: string, viewerId: number): Promise<Pos
       cm.edited_by,
       cm.edited_at,
       cm.created_at,
-
       u.id AS uid,
       u.first_name,
       u.last_name,
@@ -191,21 +210,14 @@ export async function getPostBySlug(slug: string, viewerId: number): Promise<Pos
     [post.id]
   );
 
-  // ✅ 2A. Filter comments:
-  // show only approved, or own (pending/declined)
-  const visibleComments = allComments.filter((comment) => {
-    return (
-      comment.status === 'approved' ||
-      comment.user_id === viewerId
-    );
+  const visibleComments = allComments.filter(comment => {
+    return comment.status === 'approved' || comment.user_id === viewerId;
   });
 
-  // ✅ 3. Build nested comment tree from visible comments
   const commentMap: { [id: number]: any } = {};
   const rootComments: any[] = [];
 
   visibleComments.forEach((comment) => {
-    // build user object
     comment.user = {
       id: comment.uid,
       first_name: comment.first_name,
@@ -219,7 +231,6 @@ export async function getPostBySlug(slug: string, viewerId: number): Promise<Pos
       created_at: comment.user_created_at,
     };
 
-    // cleanup redundant fields
     delete comment.uid;
     delete comment.first_name;
     delete comment.last_name;
@@ -231,32 +242,89 @@ export async function getPostBySlug(slug: string, viewerId: number): Promise<Pos
     delete comment.provider_account_id;
     delete comment.user_created_at;
 
-    // init replies array and store in map
     comment.replies = [];
     commentMap[comment.id] = comment;
 
-    // if no parent, it's a root comment
     if (!comment.parent_id) {
       rootComments.push(comment);
     }
   });
 
-  // ✅ 4. Nest replies into their parent comments
-  visibleComments.forEach((comment) => {
+  visibleComments.forEach(comment => {
     if (comment.parent_id && commentMap[comment.parent_id]) {
       commentMap[comment.parent_id].replies.push(comment);
     }
   });
 
-  // ✅ 5. Assign to post
   post.comments = rootComments;
 
   return post as PostWithDetails;
 }
 
-
-// ✅ All categories
+// ✅ Get all categories
 export async function getAllCategories(): Promise<{ id: number; name: string }[]> {
   const [rows] = await db.query('SELECT id, name FROM categories ORDER BY name ASC');
   return rows as { id: number; name: string }[];
+}
+
+
+
+/**
+ * Get all approved posts by tag slug
+ */
+export async function getPostsByTag(slug: string, viewerId?: number): Promise<PostSummary[]> {
+  const [rows] = await db.query<any[]>(
+    `
+    SELECT 
+      posts.id,
+      posts.slug,
+      posts.title,
+      posts.excerpt,
+      posts.created_at,
+      posts.featured_photo,
+      categories.name AS category,
+      users.first_name,
+      users.last_name,
+      users.avatar_url,
+      users.slug AS user_slug,
+      GROUP_CONCAT(DISTINCT t.name ORDER BY t.name SEPARATOR ',') AS tags,
+      ${
+        viewerId
+          ? `EXISTS (
+               SELECT 1 FROM followed_posts 
+               WHERE followed_posts.user_id = ${db.escape(viewerId)} AND followed_posts.post_id = posts.id
+             ) AS followed_by_current_user`
+          : `FALSE AS followed_by_current_user`
+      }
+    FROM posts
+    JOIN post_tags pt ON posts.id = pt.post_id
+    JOIN tags t ON pt.tag_id = t.id
+    LEFT JOIN categories ON posts.category_id = categories.id
+    LEFT JOIN users ON posts.user_id = users.id
+    WHERE posts.status = 'approved'
+      AND t.slug = ?
+    GROUP BY posts.id
+    ORDER BY posts.created_at DESC
+    `,
+    [slug]
+  );
+
+  return rows.map((row) => ({
+    id: row.id,
+    slug: row.slug,
+    title: row.title,
+    excerpt: row.excerpt,
+    created_at: row.created_at,
+    featured_photo: row.featured_photo,
+    category: row.category,
+    followed_by_current_user: !!row.followed_by_current_user,
+    tags: row.tags ? row.tags.split(',') : [],
+    status: 'approved',
+    user: {
+      first_name: row.first_name,
+      last_name: row.last_name,
+      avatar_url: row.avatar_url,
+      slug: row.user_slug,
+    },
+  }));
 }

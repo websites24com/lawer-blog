@@ -6,7 +6,9 @@ import { db } from '@/app/lib/db';
 import { v4 as uuid } from 'uuid';
 import path from 'path';
 import fs from 'fs/promises';
+import { savePostTags } from '@/app/lib/tags';
 
+// ✅ Extract image paths used in post content
 function extractImageUrls(html: string): Set<string> {
   const regex = /<img[^>]+src="([^">]+)"/g;
   const urls = new Set<string>();
@@ -18,6 +20,11 @@ function extractImageUrls(html: string): Set<string> {
     }
   }
   return urls;
+}
+
+// ✅ Extract hashtags like #law #rights from string
+function extractHashtags(text: string): string[] {
+  return Array.from(new Set((text.match(/#\w+/g) || []).map(tag => tag.trim())));
 }
 
 export async function POST(req: NextRequest) {
@@ -32,6 +39,7 @@ export async function POST(req: NextRequest) {
   const content = formData.get('content')?.toString().trim() || '';
   const category_id = Number(formData.get('category_id')) || 1;
   const featured_photo_url = formData.get('featured_photo_url')?.toString();
+  const rawTags = formData.get('tags')?.toString() || ''; // ✅ now included
 
   if (!title || !excerpt || !content) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -43,15 +51,26 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    await db.execute(
+    // ✅ 1. Insert post
+    const slug = uuid();
+    const [result] = await db.execute(
       `INSERT INTO posts (title, excerpt, content, category_id, user_id, featured_photo, status, slug)
        VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)`,
-      [title, excerpt, content, category_id, session.user.id, photoPath, uuid()]
+      [title, excerpt, content, category_id, session.user.id, photoPath, slug]
     );
 
+    const postId = (result as any).insertId;
+
+    // ✅ 2. Extract hashtags from tags field (NOT title/content)
+    const tags = extractHashtags(rawTags);
+    if (tags.length > 0) {
+      await savePostTags(postId, tags);
+    }
+
+    // ✅ 3. Cleanup unused uploaded images
     const usedImages = extractImageUrls(content);
     if (!usedImages.has(photoPath)) {
-      usedImages.add(photoPath); // prevent deleting the featured image
+      usedImages.add(photoPath);
     }
 
     const uploadDir = path.join(process.cwd(), 'public/uploads/posts');

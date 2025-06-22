@@ -3,106 +3,82 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/lib/auth';
 import { db } from '@/app/lib/db';
-import { z } from 'zod';
+import { savePostTags } from '@/app/lib/tags';
 
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import fs from 'fs/promises';
 import sharp from 'sharp';
 
-const FALLBACK_PHOTO = '/uploads/posts/default.jpg';
 const UPLOAD_DIR = path.join(process.cwd(), 'public/uploads/posts');
+const FALLBACK_PHOTO = '/uploads/posts/default.jpg';
 
-// ✅ Zod schema to validate form fields
-const PostUpdateSchema = z.object({
-  title: z.string().min(1, 'Title is required'),
-  excerpt: z.string().optional(),
-  content: z.string().min(1, 'Content is required'),
-  category_id: z.coerce.number().min(1),
-  featured_photo_url: z.string().min(0), // ✅ Accepts relative or empty
-  old_photo: z.string().optional(),
-});
+// 🧠 Helper to extract clean hashtag list from raw string
+function extractHashtags(input: string): string[] {
+  return input
+    .split(/[\s,]+/)
+    .map((tag) => tag.trim().replace(/^#/, '').toLowerCase())
+    .filter(Boolean);
+}
 
 export async function POST(req: NextRequest, { params }: { params: { slug: string } }) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const formData = await req.formData();
 
-    // ✅ Extract all non-file fields into raw object
-    const raw = {
-      title: formData.get('title')?.toString() || '',
-      excerpt: formData.get('excerpt')?.toString() || '',
-      content: formData.get('content')?.toString() || '',
-      category_id: formData.get('category_id')?.toString() || '',
-      featured_photo_url: formData.get('featured_photo_url')?.toString() || '',
-      old_photo: formData.get('old_photo')?.toString() || '',
-    };
+    const title = formData.get('title')?.toString() || '';
+    const excerpt = formData.get('excerpt')?.toString() || '';
+    const content = formData.get('content')?.toString() || '';
+    const categoryId = Number(formData.get('category_id'));
+    const tagsString = formData.get('tags')?.toString() || '';
+    const oldPhoto = formData.get('old_photo')?.toString() || FALLBACK_PHOTO;
+    const featuredPhotoFile = formData.get('featured_photo') as File | null;
 
-    console.log('📥 Incoming raw form fields:', raw);
+    const hashtags = extractHashtags(tagsString);
 
-    // ✅ Validate the fields using Zod
-    const result = PostUpdateSchema.safeParse(raw);
-    if (!result.success) {
-      console.log('❌ Validation failed:', result.error.issues);
-      return NextResponse.json({ error: 'Validation failed', issues: result.error.issues }, { status: 400 });
-    }
+    // ✅ Get post ID by slug
+    const [rows] = await db.query('SELECT id FROM posts WHERE slug = ?', [params.slug]);
+    const post = (rows as any[])[0];
+    if (!post) return NextResponse.json({ error: 'Post not found' }, { status: 404 });
 
-    // ✅ Use validated values
-    const { title, excerpt, content, category_id, featured_photo_url, old_photo } = result.data;
+    const postId = post.id;
+    let featuredPhotoUrl = formData.get('featured_photo_url')?.toString() || FALLBACK_PHOTO;
 
-    const file = formData.get('featured_photo') as File | null;
-    let finalPhoto = featured_photo_url || FALLBACK_PHOTO;
+    // ✅ Save new uploaded photo (if any)
+    if (featuredPhotoFile && featuredPhotoFile.size > 0) {
+      const ext = path.extname(featuredPhotoFile.name) || '.webp';
+      const fileName = `${uuidv4()}${ext}`;
+      const buffer = Buffer.from(await featuredPhotoFile.arrayBuffer());
+      const fullPath = path.join(UPLOAD_DIR, fileName);
 
-    // ✅ Upload new file if exists
-    if (file && file.size > 0) {
-      console.log('📸 Uploading new featured photo...');
-      const buffer = Buffer.from(await file.arrayBuffer());
-      const newFilename = `${uuidv4()}.webp`;
-      const finalPath = path.join(UPLOAD_DIR, newFilename);
+      await sharp(buffer).resize(1280).toFile(fullPath);
+      featuredPhotoUrl = `/uploads/posts/${fileName}`;
 
-      await fs.mkdir(UPLOAD_DIR, { recursive: true });
-      await sharp(buffer).resize(1200).webp().toFile(finalPath);
-
-      finalPhoto = `/uploads/posts/${newFilename}`;
-      console.log('✅ New photo saved at:', finalPhoto);
-    }
-
-    // ✅ Delete old photo if changed and not fallback
-    if (old_photo && old_photo !== finalPhoto && old_photo !== FALLBACK_PHOTO) {
-      const oldPath = path.join(process.cwd(), 'public', old_photo);
-      try {
-        await fs.access(oldPath);
-        await fs.unlink(oldPath);
-        console.log('🗑️ Deleted old photo:', oldPath);
-      } catch (err) {
-        console.warn('⚠️ Could not delete old photo:', oldPath, err);
+      // ✅ Delete old photo if needed
+      if (oldPhoto && oldPhoto !== FALLBACK_PHOTO) {
+        const oldPath = path.join(process.cwd(), 'public', oldPhoto);
+        try {
+          await fs.unlink(oldPath);
+        } catch {}
       }
     }
 
-    // ✅ Update the post in the database
+    // ✅ Update post
     await db.query(
-      `UPDATE posts
-       SET title = ?, excerpt = ?, content = ?, category_id = ?, featured_photo = ?, updated_at = NOW()
-       WHERE slug = ? AND user_id = ?`,
-      [
-        title,
-        excerpt,
-        content,
-        category_id,
-        finalPhoto,
-        params.slug,
-        session.user.id,
-      ]
+      `UPDATE posts SET title = ?, excerpt = ?, content = ?, category_id = ?, featured_photo = ? WHERE id = ?`,
+      [title, excerpt, content, categoryId, featuredPhotoUrl, postId]
     );
 
-    console.log('✅ Post successfully updated in database.');
+    // ✅ Save tags
+    await savePostTags(postId, hashtags);
+
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error('❌ Post update route error:', err);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('POST /edit/:slug error', err);
+    return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }

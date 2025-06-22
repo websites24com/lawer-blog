@@ -95,20 +95,6 @@ async function seed() {
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
       FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
     );
-
-    CREATE TABLE tags (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      name VARCHAR(50) NOT NULL UNIQUE,
-      slug VARCHAR(100) NOT NULL UNIQUE
-    );
-
-    CREATE TABLE post_tags (
-      post_id INT NOT NULL,
-      tag_id INT NOT NULL,
-      PRIMARY KEY (post_id, tag_id),
-      FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE,
-      FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
-    );
   `);
 
   const categories = [
@@ -223,25 +209,6 @@ async function seed() {
     );
   }
 
-  // Seed tags
-  const tagNames = ['law', 'justice', 'rights', 'property', 'contract', 'court'];
-  const tagIds: number[] = [];
-
-  for (const name of tagNames) {
-    const slug = slugify(name, { lower: true, strict: true });
-    const [result] = await connection.query('INSERT INTO tags (name, slug) VALUES (?, ?)', [name, slug]);
-    tagIds.push((result as any).insertId);
-  }
-
-  // Attach random tags to each post
-  for (const post_id of postIds) {
-    const randomTags = faker.helpers.arrayElements(tagIds, faker.number.int({ min: 1, max: 3 }));
-    for (const tag_id of randomTags) {
-      await connection.query('INSERT INTO post_tags (post_id, tag_id) VALUES (?, ?)', [post_id, tag_id]);
-    }
-  }
-
-  // Seed followers
   for (const user_id of userIds) {
     const followed = faker.helpers.arrayElements(postIds, 3);
     for (const post_id of followed) {
@@ -258,7 +225,7 @@ async function seed() {
   }
 
   await connection.end();
-  console.log('✅ Seed complete with users, posts, comments, and tags.');
+  console.log('✅ Seed complete and all data inserted into the database.');
 }
 
 seed().catch(console.error);

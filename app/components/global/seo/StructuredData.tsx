@@ -1,10 +1,10 @@
 'use client';
 
 import Script from 'next/script';
-import type { PostWithUserAndCategoryAndComments } from '@/app/lib/definitions';
+import type { PostWithDetails } from '@/app/lib/definitions';
 
 type Props = {
-  post: PostWithUserAndCategoryAndComments;
+  post: PostWithDetails;
 };
 
 export default function StructuredData({ post }: Props) {
@@ -17,15 +17,17 @@ export default function StructuredData({ post }: Props) {
     created_at,
     featured_photo,
     photo_alt,
-    user,
     slug,
+    user,
     category,
-    comments = [],
+    comments,
   } = post;
 
-  const fullUrl = `https://yourdomain.com/blog/${slug}`; // ← zamień na swoją domenę
-  const publisherLogo = 'https://yourdomain.com/logo.png'; // ← aktualizuj jeśli masz logo
+  // 🔧 Podmień na swoją prawdziwą domenę i logo
+  const fullUrl = `https://yourdomain.com/blog/${slug}`;
+  const publisherLogo = 'https://yourdomain.com/logo.png';
 
+  // 🔍 Structured Data schema
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'BlogPosting',
@@ -35,7 +37,7 @@ export default function StructuredData({ post }: Props) {
     },
     headline: title,
     description: excerpt,
-    articleBody: content?.replace(/<[^>]*>/g, '').slice(0, 500), // usuń HTML i skróć
+    articleBody: content, // NIE ścinamy! Google sam analizuje długość
     author: {
       '@type': 'Person',
       name: `${user.first_name} ${user.last_name}`,
@@ -44,20 +46,22 @@ export default function StructuredData({ post }: Props) {
     },
     publisher: {
       '@type': 'Organization',
-      name: 'Your Site Name', // ← Zmień na nazwę bloga
+      name: 'Your Site Name', // ← Zmień na nazwę Twojego bloga
       logo: {
         '@type': 'ImageObject',
         url: publisherLogo,
       },
     },
     datePublished: new Date(created_at).toISOString(),
-    image: featured_photo ? {
-      '@type': 'ImageObject',
-      url: featured_photo,
-      description: photo_alt || 'Featured image',
-    } : undefined,
+    image: featured_photo
+      ? {
+          '@type': 'ImageObject',
+          url: featured_photo,
+          description: photo_alt || 'Featured image',
+        }
+      : undefined,
     keywords: category?.name || '',
-    commentCount: comments.length,
+    commentCount: comments?.length || 0,
   };
 
   return (

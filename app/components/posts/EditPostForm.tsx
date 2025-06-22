@@ -24,16 +24,15 @@ export default function EditPostForm({ post, categories }: Props) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  // Main form state
   const [form, setForm] = useState({
     title: post.title,
     excerpt: post.excerpt,
     content: post.content,
     category_id: post.category_id?.toString() || '',
     featured_photo: post.featured_photo || '/uploads/posts/default.jpg',
+    tags: post.tags?.map((t) => `#${t}`).join(' ') || '',
   });
 
-  // UI State
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [showCropper, setShowCropper] = useState(false);
   const [titleCount, setTitleCount] = useState(post.title.length);
@@ -41,7 +40,6 @@ export default function EditPostForm({ post, categories }: Props) {
   const [contentCount, setContentCount] = useState(post.content.length);
   const [isPreviewReady, setIsPreviewReady] = useState(false);
 
-  // Live Preview sync
   const sendPreviewData = (customForm?: typeof form) => {
     if (previewWindow && !previewWindow.closed) {
       previewWindow.postMessage(
@@ -153,6 +151,17 @@ export default function EditPostForm({ post, categories }: Props) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
+    const hashtags = form.tags
+      .split(/[\s,]+/)
+      .filter((tag) => tag.startsWith('#'))
+      .map((tag) => tag.replace(/^#+/, '').toLowerCase())
+      .filter(Boolean);
+
+    if (hashtags.length > 10) {
+      toast.error('Maximum 10 hashtags allowed');
+      return;
+    }
+
     startTransition(async () => {
       try {
         const formData = new FormData();
@@ -162,7 +171,11 @@ export default function EditPostForm({ post, categories }: Props) {
         formData.append('category_id', form.category_id);
         formData.append('featured_photo_url', form.featured_photo);
         formData.append('old_photo', post.featured_photo || '/uploads/posts/default.jpg');
-        if (photoFile) formData.append('featured_photo', photoFile);
+        formData.append('tags', form.tags);
+
+        if (photoFile) {
+          formData.append('featured_photo', photoFile);
+        }
 
         if (previewWindow && !previewWindow.closed) previewWindow.close();
 
@@ -183,10 +196,7 @@ export default function EditPostForm({ post, categories }: Props) {
   };
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
-    >
+    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
       <label htmlFor="title">Title:</label>
       <input
         id="title"
@@ -223,6 +233,23 @@ export default function EditPostForm({ post, categories }: Props) {
           </option>
         ))}
       </select>
+
+      <label htmlFor="tags">Tags:</label>
+      <textarea
+        id="tags"
+        name="tags"
+        value={form.tags || ''}
+        onChange={(e) =>
+          setForm((prev) => {
+            const updated = { ...prev, tags: e.target.value };
+            sendPreviewData(updated);
+            return updated;
+          })
+        }
+        placeholder="#ai #nextjs #webdev (max 10 hashtags)"
+        style={{ minHeight: '60px' }}
+      />
+      <small>Use space or comma to separate, start with #, max 10 hashtags</small>
 
       <label>Current Photo:</label>
       <div className="image-wrapper">
