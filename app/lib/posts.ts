@@ -272,7 +272,17 @@ export async function getAllCategories(): Promise<{ id: number; name: string }[]
 /**
  * Get all approved posts by tag slug
  */
-export async function getPostsByTag(slug: string, viewerId?: number): Promise<PostSummary[]> {
+export async function getPostsByTag(
+  slug: string,
+  viewerId: number = 0,
+  page: number = 1,
+  pageSize: number = 10
+): Promise<{ posts: PostSummary[]; totalCount: number }> {
+  // ✅ Match your existing pagination logic
+  const offset = (page - 1) * pageSize;
+  const limit = pageSize;
+
+  // ✅ Load paginated posts
   const [rows] = await db.query<any[]>(
     `
     SELECT 
@@ -302,14 +312,31 @@ export async function getPostsByTag(slug: string, viewerId?: number): Promise<Po
     LEFT JOIN categories ON posts.category_id = categories.id
     LEFT JOIN users ON posts.user_id = users.id
     WHERE posts.status = 'approved'
-      AND t.slug = ?
+      AND LOWER(t.slug) = LOWER(?)
     GROUP BY posts.id
     ORDER BY posts.created_at DESC
+    LIMIT ? OFFSET ?
+    `,
+    [slug, limit, offset]
+  );
+
+  // ✅ Load total count for pagination
+  const [countRows] = await db.query<any[]>(
+    `
+    SELECT COUNT(DISTINCT posts.id) AS count
+    FROM posts
+    JOIN post_tags pt ON posts.id = pt.post_id
+    JOIN tags t ON pt.tag_id = t.id
+    WHERE posts.status = 'approved'
+      AND LOWER(t.slug) = LOWER(?)
     `,
     [slug]
   );
 
-  return rows.map((row) => ({
+  const totalCount = countRows[0].count;
+
+  // ✅ Map to PostSummary[]
+  const posts: PostSummary[] = rows.map((row) => ({
     id: row.id,
     slug: row.slug,
     title: row.title,
@@ -327,4 +354,6 @@ export async function getPostsByTag(slug: string, viewerId?: number): Promise<Po
       slug: row.user_slug,
     },
   }));
+
+  return { posts, totalCount };
 }

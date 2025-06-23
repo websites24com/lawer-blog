@@ -9,6 +9,7 @@ import Comments from '@/app/components/comments/Comments';
 import StructuredData from '@/app/components/global/seo/StructuredData';
 
 import type { Metadata } from 'next';
+import Link from 'next/link';
 
 type PageProps = {
   params: {
@@ -87,24 +88,26 @@ export default async function BlogPostPage({ params }: PageProps) {
         style={{ lineHeight: '1.7', marginTop: '2rem' }}
       />
 
-      {post.tags && post.tags.length > 0 && (
-        <div style={{ marginTop: '2rem' }}>
-          <strong>Tags: </strong>
-          {post.tags.map((tag) => (
-            <a
-              key={tag}
-              href={`/tags/${encodeURIComponent(tag)}`}
-              style={{
-                marginRight: '0.5rem',
-                color: '#0070f3',
-                textDecoration: 'none',
-              }}
-            >
-              #{tag}
-            </a>
-          ))}
-        </div>
-      )}
+      
+{post.tags && post.tags.length > 0 && (
+  <div style={{ marginTop: '2rem' }}>
+    <strong>Tags: </strong>
+    {post.tags.map((tag) => (
+      <Link
+        key={tag}
+        href={`/blog/tag/${encodeURIComponent(tag.toLowerCase())}`}
+        style={{
+          marginRight: '0.5rem',
+          color: '#0070f3',
+          textDecoration: 'none',
+        }}
+      >
+        #{tag}
+      </Link>
+    ))}
+  </div>
+)}
+
 
       {/* ✅ Inject SEO Structured Data (JSON-LD) */}
       <StructuredData post={post} />
