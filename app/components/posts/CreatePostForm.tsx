@@ -27,7 +27,6 @@ export default function CreatePostForm({ categories }: CreatePostFormProps) {
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [showCropper, setShowCropper] = useState(false);
   const [isPending, startTransition] = useTransition();
-
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const router = useRouter();
 
@@ -71,6 +70,22 @@ export default function CreatePostForm({ categories }: CreatePostFormProps) {
       return updated;
     });
     setContentCount(value.length);
+  };
+
+  const handleTagsBlur = () => {
+    const tags = form.tags
+      .split(/[\s,]+/)
+      .map(tag => `#${tag.replace(/^#+/, '').toLowerCase()}`)
+      .filter(tag => tag.length > 1);
+
+    const unique = Array.from(new Set(tags)).slice(0, 10);
+    const formatted = unique.join(' ');
+
+    setForm(prev => {
+      const updated = { ...prev, tags: formatted };
+      sendPreviewData(updated);
+      return updated;
+    });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -154,7 +169,7 @@ export default function CreatePostForm({ categories }: CreatePostFormProps) {
   }, [form, isPreviewReady]);
 
   return (
-    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+    <form className="post-form" onSubmit={handleSubmit}>
       <label htmlFor="title">Title:</label>
       <input
         id="title"
@@ -165,7 +180,7 @@ export default function CreatePostForm({ categories }: CreatePostFormProps) {
         maxLength={70}
         required
       />
-      <small style={{ alignSelf: 'flex-end' }}>{titleCount}/70</small>
+      <small className="char-counter">{titleCount}/70</small>
 
       <label htmlFor="excerpt">Excerpt:</label>
       <textarea
@@ -177,42 +192,26 @@ export default function CreatePostForm({ categories }: CreatePostFormProps) {
         maxLength={160}
         required
       />
-      <small style={{ alignSelf: 'flex-end' }}>{excerptCount}/160</small>
+      <small className="char-counter">{excerptCount}/160</small>
 
       <label htmlFor="content">Content:</label>
       <RichTextEditor value={form.content} onChange={handleContentChange} />
-      <small style={{ alignSelf: 'flex-end' }}>{contentCount}/10000</small>
+      <small className="char-counter">{contentCount}/10000</small>
 
       <label htmlFor="tags">Tags (hashtags):</label>
       <input
         id="tags"
         name="tags"
-        value={form.tags || ''}
-        onChange={(e) => {
-          const raw = e.target.value;
-
-          // Split tags, normalize, add # if needed, dedupe, limit to 10
-          const tags = raw
-            .split(/[\s,]+/)
-            .map((tag) => `#${tag.replace(/^#+/, '').toLowerCase()}`)
-            .filter((tag) => tag.length > 1);
-
-          const unique = Array.from(new Set(tags)).slice(0, 10);
-          const formatted = unique.join(' ');
-
-          setForm((prev) => {
-            const updated = { ...prev, tags: formatted };
-            sendPreviewData(updated);
-            return updated;
-          });
-        }}
+        value={form.tags}
+        onChange={(e) => setForm(prev => ({ ...prev, tags: e.target.value }))}
+        onBlur={handleTagsBlur}
         placeholder="Max 10 hashtags, e.g. #law #divorce #rights"
       />
-      <small style={{ alignSelf: 'flex-end' }}>
+      <small className="char-hint">
         Separate with spaces – max 10 – must begin with <strong>#</strong>
       </small>
 
-      <label>Category:</label>
+      <label htmlFor="category_id">Category:</label>
       <select name="category_id" value={form.category_id} onChange={handleChange}>
         {categories.map((cat) => (
           <option key={cat.id} value={cat.id}>{cat.name}</option>
@@ -225,11 +224,11 @@ export default function CreatePostForm({ categories }: CreatePostFormProps) {
           key={form.featured_photo}
           src={form.featured_photo || '/uploads/posts/default.jpg'}
           alt="Post photo preview"
-          imageType="bike"
+          imageType="post"
         />
       </div>
 
-      <div style={{ display: 'flex', gap: '0.5rem' }}>
+      <div className="photo-actions">
         <ActionButton type="button" onClick={handleDeletePhoto} disabled={isPending} title="Delete Photo">
           <Icon icon="twemoji:wastebasket" width="20" height="20" /> Delete
         </ActionButton>

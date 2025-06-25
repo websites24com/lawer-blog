@@ -85,22 +85,18 @@ export default function EditPostForm({ post, categories }: Props) {
   }, []);
 
   useEffect(() => {
-    if (isPreviewReady) {
-      sendPreviewData();
-    }
+    if (isPreviewReady) sendPreviewData();
   }, [form, isPreviewReady]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target;
-
     setForm((prev) => {
       const updated = { ...prev, [name]: value };
       sendPreviewData(updated);
       return updated;
     });
-
     if (name === 'title') setTitleCount(value.length);
     if (name === 'excerpt') setExcerptCount(value.length);
   };
@@ -112,6 +108,22 @@ export default function EditPostForm({ post, categories }: Props) {
       return updated;
     });
     setContentCount(value.length);
+  };
+
+  const handleTagsBlur = () => {
+    const tags = form.tags
+      .split(/[\s,]+/)
+      .map((tag) => `#${tag.replace(/^#+/, '').toLowerCase()}`)
+      .filter((tag) => tag.length > 1);
+
+    const unique = Array.from(new Set(tags)).slice(0, 10);
+    const formatted = unique.join(' ');
+
+    setForm((prev) => {
+      const updated = { ...prev, tags: formatted };
+      sendPreviewData(updated);
+      return updated;
+    });
   };
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -172,7 +184,6 @@ export default function EditPostForm({ post, categories }: Props) {
         formData.append('featured_photo_url', form.featured_photo);
         formData.append('old_photo', post.featured_photo || '/uploads/posts/default.jpg');
         formData.append('tags', form.tags);
-
         if (photoFile) {
           formData.append('featured_photo', photoFile);
         }
@@ -196,7 +207,7 @@ export default function EditPostForm({ post, categories }: Props) {
   };
 
   return (
-    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+    <form className="post-form" onSubmit={handleSubmit}>
       <label htmlFor="title">Title:</label>
       <input
         id="title"
@@ -207,7 +218,7 @@ export default function EditPostForm({ post, categories }: Props) {
         maxLength={70}
         required
       />
-      <small style={{ alignSelf: 'flex-end' }}>{titleCount}/70</small>
+      <small className="char-counter">{titleCount}/70</small>
 
       <label htmlFor="excerpt">Excerpt:</label>
       <textarea
@@ -215,17 +226,30 @@ export default function EditPostForm({ post, categories }: Props) {
         name="excerpt"
         value={form.excerpt}
         onChange={handleChange}
-        placeholder="Short excerpt (max 300 characters)"
-        maxLength={300}
+        placeholder="Brief excerpt (max 160 characters)"
+        maxLength={160}
         required
       />
-      <small style={{ alignSelf: 'flex-end' }}>{excerptCount}/300</small>
+      <small className="char-counter">{excerptCount}/160</small>
 
       <label htmlFor="content">Content:</label>
       <RichTextEditor value={form.content} onChange={handleContentChange} />
-      <small style={{ alignSelf: 'flex-end' }}>{contentCount}/10000</small>
+      <small className="char-counter">{contentCount}/10000</small>
 
-      <label>Category:</label>
+      <label htmlFor="tags">Tags (hashtags):</label>
+      <input
+        id="tags"
+        name="tags"
+        value={form.tags}
+        onChange={(e) => setForm((prev) => ({ ...prev, tags: e.target.value }))}
+        onBlur={handleTagsBlur}
+        placeholder="Max 10 hashtags, e.g. #law #divorce #rights"
+      />
+      <small className="char-hint">
+        Separate with spaces – max 10 – must begin with <strong>#</strong>
+      </small>
+
+      <label htmlFor="category_id">Category:</label>
       <select name="category_id" value={form.category_id} onChange={handleChange}>
         {categories.map((c) => (
           <option key={c.id} value={c.id}>
@@ -234,34 +258,17 @@ export default function EditPostForm({ post, categories }: Props) {
         ))}
       </select>
 
-      <label htmlFor="tags">Tags:</label>
-      <textarea
-        id="tags"
-        name="tags"
-        value={form.tags || ''}
-        onChange={(e) =>
-          setForm((prev) => {
-            const updated = { ...prev, tags: e.target.value };
-            sendPreviewData(updated);
-            return updated;
-          })
-        }
-        placeholder="#ai #nextjs #webdev (max 10 hashtags)"
-        style={{ minHeight: '60px' }}
-      />
-      <small>Use space or comma to separate, start with #, max 10 hashtags</small>
-
       <label>Current Photo:</label>
       <div className="image-wrapper">
         <ImageWithFallback
           key={form.featured_photo}
           src={form.featured_photo}
           alt="Featured photo"
-          imageType="bike"
+          imageType="post"
         />
       </div>
 
-      <div style={{ display: 'flex', gap: '0.5rem' }}>
+      <div className="photo-actions">
         <ActionButton type="button" onClick={handleDeletePhoto} title="Delete Photo" disabled={isPending}>
           <Icon icon="twemoji:wastebasket" width="20" height="20" /> Delete
         </ActionButton>

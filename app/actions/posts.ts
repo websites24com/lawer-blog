@@ -19,6 +19,7 @@ export async function createPost(formData: FormData) {
   const content = formData.get('content')?.toString().trim() || '';
   const excerpt = formData.get('excerpt')?.toString().trim() || '';
   const category_id = parseInt(formData.get('category_id')?.toString() || '0', 10);
+  const tagsRaw = formData.get('tags')?.toString().trim() || '';
   const photoFile = formData.get('featured_photo') as File | null;
 
   if (!title || !content || !excerpt || !category_id) {
@@ -27,6 +28,7 @@ export async function createPost(formData: FormData) {
 
   let featured_photo: string | null = null;
 
+  // ✅ Save and process image if present
   if (photoFile && photoFile.size > 0) {
     const buffer = Buffer.from(await photoFile.arrayBuffer());
 
@@ -47,12 +49,51 @@ export async function createPost(formData: FormData) {
 
   const slug = slugify(title, { lower: true, strict: true }).substring(0, 100);
 
-  await db.query(
+  // ✅ Insert the post
+  const [result] = await db.query(
     `INSERT INTO posts (title, slug, excerpt, content, user_id, category_id, featured_photo, status, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', NOW(), NOW())`,
     [title, slug, excerpt, content, user_id, category_id, featured_photo]
   );
+
+  const post_id = (result as any).insertId;
+
+  // ✅ Handle tags
+  if (tagsRaw) {
+    // Parse and normalize tags from input
+    const tagList = tagsRaw
+      .split(/[\s,]+/)
+      .map((tag) => tag.replace(/^#+/, '').toLowerCase())
+      .filter((tag) => tag.length > 1);
+
+    const uniqueTags = Array.from(new Set(tagList)).slice(0, 10);
+
+    for (const name of uniqueTags) {
+      const slug = slugify(name, { lower: true, strict: true });
+
+      // Insert tag if not exists
+      const [tagRows] = await db.query('SELECT id FROM tags WHERE name = ?', [name]);
+      let tag_id: number;
+
+      if ((tagRows as any[]).length > 0) {
+        tag_id = (tagRows as any)[0].id;
+      } else {
+        const [insertTag] = await db.query(
+          'INSERT INTO tags (name, slug) VALUES (?, ?)',
+          [name, slug]
+        );
+        tag_id = (insertTag as any).insertId;
+      }
+
+      // ✅ Link post to tag
+      await db.query(
+        'INSERT INTO post_tags (post_id, tag_id) VALUES (?, ?)',
+        [post_id, tag_id]
+      );
+    }
+  }
 }
+
 
 export async function followPost(postId: number) {
   const session = await auth();
