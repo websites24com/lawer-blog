@@ -9,6 +9,7 @@ import ImageWithFallback from '@/app/components/global/ImageWithFallback';
 import RichTextEditor from '@/app/components/global/RichTextEditor';
 import ImageCropModal from '@/app/components/posts/images/ImageCropModal';
 import ActionButton from '@/app/components/global/ActionButton';
+import TagInput from '@/app/components/posts/TagInput'; // ✅ Same as CreatePostForm
 
 import type { PostWithDetails, Category } from '@/app/lib/definitions';
 
@@ -40,6 +41,7 @@ export default function EditPostForm({ post, categories }: Props) {
   const [contentCount, setContentCount] = useState(post.content.length);
   const [isPreviewReady, setIsPreviewReady] = useState(false);
 
+  // Send live preview updates
   const sendPreviewData = (customForm?: typeof form) => {
     if (previewWindow && !previewWindow.closed) {
       previewWindow.postMessage(
@@ -88,6 +90,7 @@ export default function EditPostForm({ post, categories }: Props) {
     if (isPreviewReady) sendPreviewData();
   }, [form, isPreviewReady]);
 
+  // Handle field updates
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
@@ -108,22 +111,6 @@ export default function EditPostForm({ post, categories }: Props) {
       return updated;
     });
     setContentCount(value.length);
-  };
-
-  const handleTagsBlur = () => {
-    const tags = form.tags
-      .split(/[\s,]+/)
-      .map((tag) => `#${tag.replace(/^#+/, '').toLowerCase()}`)
-      .filter((tag) => tag.length > 1);
-
-    const unique = Array.from(new Set(tags)).slice(0, 10);
-    const formatted = unique.join(' ');
-
-    setForm((prev) => {
-      const updated = { ...prev, tags: formatted };
-      sendPreviewData(updated);
-      return updated;
-    });
   };
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -160,19 +147,9 @@ export default function EditPostForm({ post, categories }: Props) {
     }
   };
 
+  // Final submit
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-
-    const hashtags = form.tags
-      .split(/[\s,]+/)
-      .filter((tag) => tag.startsWith('#'))
-      .map((tag) => tag.replace(/^#+/, '').toLowerCase())
-      .filter(Boolean);
-
-    if (hashtags.length > 10) {
-      toast.error('Maximum 10 hashtags allowed');
-      return;
-    }
 
     startTransition(async () => {
       try {
@@ -183,7 +160,7 @@ export default function EditPostForm({ post, categories }: Props) {
         formData.append('category_id', form.category_id);
         formData.append('featured_photo_url', form.featured_photo);
         formData.append('old_photo', post.featured_photo || '/uploads/posts/default.jpg');
-        formData.append('tags', form.tags);
+        formData.append('tags', form.tags || '');
         if (photoFile) {
           formData.append('featured_photo', photoFile);
         }
@@ -237,13 +214,15 @@ export default function EditPostForm({ post, categories }: Props) {
       <small className="char-counter">{contentCount}/10000</small>
 
       <label htmlFor="tags">Tags (hashtags):</label>
-      <input
-        id="tags"
-        name="tags"
+      <TagInput
         value={form.tags}
-        onChange={(e) => setForm((prev) => ({ ...prev, tags: e.target.value }))}
-        onBlur={handleTagsBlur}
-        placeholder="Max 10 hashtags, e.g. #law #divorce #rights"
+        onChange={(tagsString) => {
+          setForm((prev) => {
+            const updated = { ...prev, tags: tagsString };
+            sendPreviewData(updated);
+            return updated;
+          });
+        }}
       />
       <small className="char-hint">
         Separate with spaces – max 10 – must begin with <strong>#</strong>
@@ -293,6 +272,7 @@ export default function EditPostForm({ post, categories }: Props) {
         <ImageCropModal
           file={photoFile}
           onClose={() => setShowCropper(false)}
+          currentPhotoUrl={form.featured_photo}
           onUploadSuccess={(url) => {
             setForm((prev) => {
               const updated = { ...prev, featured_photo: url };
@@ -302,7 +282,6 @@ export default function EditPostForm({ post, categories }: Props) {
             setPhotoFile(null);
             if (fileInputRef.current) fileInputRef.current.value = '';
           }}
-          currentPhotoUrl={form.featured_photo}
         />
       )}
     </form>

@@ -35,3 +35,98 @@
 }
 
 // Tags 
+.tag-input-wrapper {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+
+  &.limit-exceeded .tag-input-field {
+    border-color: #e63946;
+    background-color: #fff0f0;
+  }
+}
+
+.tag-input-field {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  font-size: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  transition: border-color 0.2s ease;
+
+  &:focus {
+    outline: none;
+    border-color: #0077cc;
+  }
+
+  &:disabled {
+    background-color: #f9f9f9;
+    color: #aaa;
+    cursor: not-allowed;
+  }
+}
+
+.tag-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  background-color: #fff;
+  border: 1px solid #ccc;
+  border-top: none;
+  border-radius: 0 0 4px 4px;
+  z-index: 10;
+  max-height: 180px;
+  overflow-y: auto;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+}
+
+.suggestion-item {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+
+  &:hover {
+    background-color: #f0f0f0;
+  }
+}
+
+.tag-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.tag-chip {
+  background-color: #e0e0e0;
+  color: #333;
+  font-size: 0.875rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+
+  .remove-tag {
+    margin-left: 0.5rem;
+    background: none;
+    border: none;
+    font-weight: bold;
+    font-size: 1rem;
+    color: #666;
+    cursor: pointer;
+    line-height: 1;
+
+    &:hover {
+      color: #d00;
+    }
+  }
+}
+
+.tag-limit-msg {
+  font-size: 0.75rem;
+  color: #e63946;
+  margin-top: 0.25rem;
+}

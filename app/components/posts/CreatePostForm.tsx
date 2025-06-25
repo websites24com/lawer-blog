@@ -6,6 +6,7 @@ import ActionButton from '@/app/components/global/ActionButton';
 import ImageWithFallback from '@/app/components/global/ImageWithFallback';
 import RichTextEditor from '@/app/components/global/RichTextEditor';
 import ImageCropModal from '@/app/components/posts/images/ImageCropModal';
+import TagInput from '@/app/components/posts/TagInput'; // ✅ NEW
 import { Icon } from '@iconify/react';
 
 let previewWindow: Window | null = null;
@@ -70,22 +71,6 @@ export default function CreatePostForm({ categories }: CreatePostFormProps) {
       return updated;
     });
     setContentCount(value.length);
-  };
-
-  const handleTagsBlur = () => {
-    const tags = form.tags
-      .split(/[\s,]+/)
-      .map(tag => `#${tag.replace(/^#+/, '').toLowerCase()}`)
-      .filter(tag => tag.length > 1);
-
-    const unique = Array.from(new Set(tags)).slice(0, 10);
-    const formatted = unique.join(' ');
-
-    setForm(prev => {
-      const updated = { ...prev, tags: formatted };
-      sendPreviewData(updated);
-      return updated;
-    });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -199,13 +184,15 @@ export default function CreatePostForm({ categories }: CreatePostFormProps) {
       <small className="char-counter">{contentCount}/10000</small>
 
       <label htmlFor="tags">Tags (hashtags):</label>
-      <input
-        id="tags"
-        name="tags"
+      <TagInput
         value={form.tags}
-        onChange={(e) => setForm(prev => ({ ...prev, tags: e.target.value }))}
-        onBlur={handleTagsBlur}
-        placeholder="Max 10 hashtags, e.g. #law #divorce #rights"
+        onChange={(tagsString) => {
+          setForm(prev => {
+            const updated = { ...prev, tags: tagsString };
+            sendPreviewData(updated);
+            return updated;
+          });
+        }}
       />
       <small className="char-hint">
         Separate with spaces – max 10 – must begin with <strong>#</strong>
