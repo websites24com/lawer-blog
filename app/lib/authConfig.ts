@@ -16,8 +16,6 @@ export const authConfig: NextAuthOptions = {
         password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
-        // console.log('🟡 [authorize] Credentials login attempt:', credentials?.email);
-
         if (!credentials?.email || !credentials?.password) {
           console.log('❌ Missing credentials');
           return null;
@@ -35,8 +33,6 @@ export const authConfig: NextAuthOptions = {
           console.log('❌ Invalid password');
           return null;
         }
-
-        console.log('✅ Credentials login success:', user);
 
         return {
           id: user.id,
@@ -65,12 +61,6 @@ export const authConfig: NextAuthOptions = {
 
   callbacks: {
     async jwt({ token, account, profile, user }) {
-      // console.log('🟢 [jwt] Start');
-      // console.log('token (in):', token);
-      // console.log('account:', account);
-      // console.log('profile:', profile);
-      // console.log('user:', user);
-
       if (account?.provider === 'credentials' && user) {
         token.id = user.id;
         token.email = user.email ?? null;
@@ -78,8 +68,6 @@ export const authConfig: NextAuthOptions = {
         token.avatar_url = user.avatar_url ?? null;
         token.provider = 'credentials';
         token.provider_account_id = null;
-
-        console.log('✅ token (credentials):', token);
         return token;
       }
 
@@ -94,8 +82,6 @@ export const authConfig: NextAuthOptions = {
         let user = rows[0];
 
         if (!user) {
-          // console.log(`🆕 Creating user for ${provider} (${providerAccountId})`);
-
           let first_name = 'First';
           let last_name = 'Last';
           if (profile?.name) {
@@ -122,14 +108,19 @@ export const authConfig: NextAuthOptions = {
             slug = `${baseSlug}-${suffix++}`;
           }
 
+          // ✅ Add default location (Mexico City)
+          const defaultLat = 19.4326; // ✅ updated
+          const defaultLng = -99.1332; // ✅ updated
+          const point = `POINT(${defaultLng} ${defaultLat})`; // ✅ updated
+
           try {
             const [result] = await db.query(
               `INSERT INTO users (
                 first_name, last_name, slug, email, password, phone, chat_app,
                 avatar_url, avatar_alt, avatar_title,
                 role, status, provider, provider_account_id,
-                website, about_me
-              ) VALUES (?, ?, ?, ?, NULL, NULL, 'None', ?, NULL, NULL, 'USER', 'approved', ?, ?, NULL, NULL)`,
+                website, about_me, location
+              ) VALUES (?, ?, ?, ?, NULL, NULL, 'None', ?, NULL, NULL, 'USER', 'approved', ?, ?, NULL, NULL, ST_GeomFromText(?))`, // ✅ updated
               [
                 first_name,
                 last_name,
@@ -138,6 +129,7 @@ export const authConfig: NextAuthOptions = {
                 avatar_url,
                 provider,
                 providerAccountId,
+                point, // ✅ updated
               ]
             );
 
@@ -145,7 +137,6 @@ export const authConfig: NextAuthOptions = {
               (result as any).insertId,
             ]);
             user = newRows[0];
-            // console.log('✅ Inserted user:', user);
           } catch (err) {
             console.error('❌ DB error inserting user:', err);
           }
@@ -158,7 +149,6 @@ export const authConfig: NextAuthOptions = {
           token.avatar_url = user.avatar_url ?? null;
           token.provider = user.provider;
           token.provider_account_id = user.provider_account_id;
-          // console.log('✅ token (oauth):', token);
         }
       }
 
@@ -166,8 +156,6 @@ export const authConfig: NextAuthOptions = {
     },
 
     async session({ session, token }) {
-      // console.log('🔵 [session] building from token:', token);
-
       if (session.user) {
         session.user.id = token.id ?? 0;
         session.user.email = token.email ?? null;
@@ -176,8 +164,6 @@ export const authConfig: NextAuthOptions = {
         session.user.provider = token.provider ?? null;
         session.user.provider_account_id = token.provider_account_id ?? null;
       }
-
-      // console.log('✅ Final session:', session);
       return session;
     },
   },

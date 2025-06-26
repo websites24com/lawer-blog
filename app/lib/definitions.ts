@@ -115,3 +115,8 @@ export type PostWithDetails = {
   followed_by_current_user?: boolean;
   comments: CommentWithUser[];
 };
+
+
+// Geolocation
+
+export type formRef = React.RefObject<HTMLFormElement>;

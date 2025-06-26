@@ -14,6 +14,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     const parsed = registerSchema.parse(body);
 
+    // ✅ Check if user already exists
     const [existing] = await db.query('SELECT id FROM users WHERE email = ?', [parsed.email]);
     if ((existing as any[]).length > 0) {
       return new Response(JSON.stringify({ error: 'Email already in use' }), { status: 409 });
@@ -21,7 +22,7 @@ export async function POST(req: Request) {
 
     const hashedPassword = await bcrypt.hash(parsed.password, 10);
 
-    // ✅ Generate slug and ensure uniqueness
+    // ✅ Generate unique slug from full name
     const baseSlug = slugify(`${parsed.first_name} ${parsed.last_name}`, { lower: true, strict: true });
     let slug = baseSlug;
     let suffix = 1;
@@ -32,13 +33,26 @@ export async function POST(req: Request) {
       slug = `${baseSlug}-${suffix++}`;
     }
 
-    // ✅ Now insert with slug included
+    // ✅ Use default coordinates (Mexico City) for required location field
+    const defaultLat = 19.4326;
+    const defaultLng = -99.1332;
+    const locationPoint = `POINT(${defaultLng} ${defaultLat})`;
+
+    // ✅ Insert with required location using ST_GeomFromText
     await db.query(
       `INSERT INTO users (
         first_name, last_name, slug, email, password,
-        role, provider, provider_account_id, avatar_url
-      ) VALUES (?, ?, ?, ?, ?, 'USER', 'credentials', NULL, '')`,
-      [parsed.first_name, parsed.last_name, slug, parsed.email, hashedPassword]
+        role, provider, provider_account_id, avatar_url,
+        location
+      ) VALUES (?, ?, ?, ?, ?, 'USER', 'credentials', NULL, '', ST_GeomFromText(?))`,
+      [
+        parsed.first_name,
+        parsed.last_name,
+        slug,
+        parsed.email,
+        hashedPassword,
+        locationPoint,
+      ]
     );
 
     return new Response(JSON.stringify({ success: true }), { status: 201 });
