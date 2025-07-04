@@ -1,7 +1,7 @@
 'use server';
 
 import { db } from '@/app/lib/db';
-import { auth } from '@/app/lib/auth';
+import { auth } from '@/app/lib/auth/auth';
 import type { UserRow, UserSummary } from '@/app/lib/definitions';
 
 export async function getAllUsers(filter: string = ''): Promise<UserSummary[]> {

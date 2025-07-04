@@ -4,7 +4,7 @@
 
 import { db } from '@/app/lib/db';
 import slugify from 'slugify';
-import { auth } from '@/app/lib/auth';
+import { auth } from '@/app/lib/auth/auth';
 import { v4 as uuid } from 'uuid';
 import path from 'path';
 import { mkdir, writeFile, unlink, rename } from 'fs/promises';

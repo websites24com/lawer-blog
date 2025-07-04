@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import { useState, useEffect } from 'react';
-import Spinner from '@/app/components/global/Spinner';
+import Spinner from '@/app/components/layout/Spinner';
 
 type Props = {
   src: string | null;

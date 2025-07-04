@@ -7,7 +7,7 @@ import RenderEmail from '@/app/components/global/RenderEmail';
 import RenderWebsite from '@/app/components/global/RenderWebsite';
 import FollowUserButton from '@/app/components/user/FollowUserButton';
 import { getUserBySlug } from '@/app/lib/users';
-import { auth } from '@/app/lib/auth';
+import { auth } from '@/app/lib/auth/auth';
 import { formatOrDash } from '@/app/utils/formatOrDash';
 import type { FullUserData } from '@/app/lib/definitions';
 

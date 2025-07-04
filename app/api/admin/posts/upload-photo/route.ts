@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/app/lib/auth';
+import { auth } from '@/app/lib/auth/auth';
 import { v4 as uuid } from 'uuid';
 import path from 'path';
 import fs from 'fs/promises';

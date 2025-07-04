@@ -1,7 +1,7 @@
 export const revalidate = 60; // ✅ Enable ISR (Incremental Static Regeneration)
 
 import { getPostBySlug } from '@/app/lib/posts';
-import { auth } from '@/app/lib/auth';
+import { auth } from '@/app/lib/auth/auth';
 import ImageWithFallback from '@/app/components/global/ImageWithFallback';
 import FollowButton from '@/app/components/posts/FollowPostButton';
 import AuthorInfo from '@/app/components/user/AuthorInfo';

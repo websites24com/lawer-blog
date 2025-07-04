@@ -1,37 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/app/lib/auth';
-import { db } from '@/app/lib/db';
 import path from 'path';
 import fs from 'fs/promises';
 import type { RowDataPacket } from 'mysql2';
 
+import { db } from '@/app/lib/db';
+import { RequireAuth } from '@/app/lib/auth/requireAuth';
+import { ROLES } from '@/app/lib/auth/roles';
+
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    // ✅ Step 1: Auth and role validation
+    const { user } = await RequireAuth({
+      roles: [ROLES.USER, ROLES.MODERATOR, ROLES.ADMIN],
+    });
 
     const postId = parseInt(params.id, 10);
     if (isNaN(postId)) {
       return NextResponse.json({ error: 'Invalid post ID' }, { status: 400 });
     }
 
-    console.log('🔍 Attempting to delete post', {
-      postId,
-      userId: session.user.id
-    });
-
-    // ✅ Get current photo path
+    // ✅ Step 2: Load post with owner
     const [rows] = await db.execute(
-      'SELECT featured_photo FROM posts WHERE id = ? AND user_id = ? LIMIT 1',
-      [postId, session.user.id]
+      'SELECT id, user_id, featured_photo FROM posts WHERE id = ? LIMIT 1',
+      [postId]
     );
-
     const post = (rows as RowDataPacket[])[0];
-    const photoPath = post?.featured_photo;
 
-    // ✅ Move photo to /to_delete if it's not default
+    if (!post) {
+      return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+    }
+
+    // ✅ Step 3: Access check
+    const isOwner = post.user_id === user.id;
+    const isPrivileged = [ROLES.ADMIN, ROLES.MODERATOR].includes(user.role);
+
+    if (!isOwner && !isPrivileged) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    // ✅ Step 4: Move photo to /to_delete if not default
+    const photoPath = post.featured_photo;
     if (photoPath && !photoPath.includes('default.jpg')) {
       const currentPhotoPath = path.join(process.cwd(), 'public', photoPath);
       const toDeleteDir = path.join(process.cwd(), 'public/uploads/posts/to_delete');
@@ -47,13 +55,11 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
       }
     }
 
-    // ✅ Delete tags from post_tags
+    // ✅ Step 5: Delete related tags and post
     await db.execute('DELETE FROM post_tags WHERE post_id = ?', [postId]);
+    const [result] = await db.execute('DELETE FROM posts WHERE id = ?', [postId]);
 
-    // ✅ Delete post
-    const [result] = await db.execute('DELETE FROM posts WHERE id = ? AND user_id = ?', [postId, session.user.id]);
-    console.log('✅ Deletion result:', result);
-
+    console.log(`✅ Post #${postId} deleted by user #${user.id} (${user.role})`);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('❌ DELETE route error:', error);

@@ -1,7 +1,8 @@
 'use server';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/app/lib/auth';
+import { RequireAuth } from '@/app/lib/auth/requireAuth';
+import { ROLES } from '@/app/lib/auth/roles';
 import { db } from '@/app/lib/db';
 import { v4 as uuid } from 'uuid';
 import path from 'path';
@@ -28,46 +29,64 @@ function extractHashtags(text: string): string[] {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const formData = await req.formData();
-  const title = formData.get('title')?.toString().trim() || '';
-  const excerpt = formData.get('excerpt')?.toString().trim() || '';
-  const content = formData.get('content')?.toString().trim() || '';
-  const category_id = Number(formData.get('category_id')) || 1;
-  const featured_photo_url = formData.get('featured_photo_url')?.toString();
-  const rawTags = formData.get('tags')?.toString() || ''; // ✅ now included
-
-  if (!title || !excerpt || !content) {
-    return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
-  }
-
-  let photoPath = '/uploads/posts/default.jpg';
-  if (featured_photo_url && featured_photo_url.startsWith('/uploads/posts/')) {
-    photoPath = featured_photo_url;
-  }
-
   try {
-    // ✅ 1. Insert post
+    // ✅ Step 1: Authenticate user (user must be logged in with valid role)
+    const { user } = await RequireAuth({
+      roles: [ROLES.USER, ROLES.MODERATOR, ROLES.ADMIN],
+    });
+
+    // ✅ Step 2: Parse form data
+    const formData = await req.formData();
+    const title = formData.get('title')?.toString().trim() || '';
+    const excerpt = formData.get('excerpt')?.toString().trim() || '';
+    const content = formData.get('content')?.toString().trim() || '';
+    const category_id = Number(formData.get('category_id')) || 1;
+    const featured_photo_url = formData.get('featured_photo_url')?.toString();
+    const rawTags = formData.get('tags')?.toString() || '';
+
+    // ✅ NEW: Read location values from form or use fallback (Mexico City)
+    const lat = parseFloat(formData.get('lat')?.toString() || '') || 19.4326;
+    const lon = parseFloat(formData.get('lon')?.toString() || '') || -99.1332;
+
+    if (!title || !excerpt || !content) {
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    }
+
+    // ✅ Step 3: Process featured photo
+    let photoPath = '/uploads/posts/default.jpg';
+    if (featured_photo_url && featured_photo_url.startsWith('/uploads/posts/')) {
+      photoPath = featured_photo_url;
+    }
+
+    // ✅ Step 4: Insert post with location
     const slug = uuid();
     const [result] = await db.execute(
-      `INSERT INTO posts (title, excerpt, content, category_id, user_id, featured_photo, status, slug)
-       VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)`,
-      [title, excerpt, content, category_id, session.user.id, photoPath, slug]
+      `INSERT INTO posts (
+        title, excerpt, content, category_id, user_id,
+        featured_photo, status, slug, location
+      )
+      VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ST_GeomFromText(?))`,
+      [
+        title,
+        excerpt,
+        content,
+        category_id,
+        user.id,
+        photoPath,
+        slug,
+        `POINT(${lon} ${lat})`, // POINT(X Y) = POINT(lon lat)
+      ]
     );
 
     const postId = (result as any).insertId;
 
-    // ✅ 2. Extract hashtags from tags field (NOT title/content)
+    // ✅ Step 5: Save tags
     const tags = extractHashtags(rawTags);
     if (tags.length > 0) {
       await savePostTags(postId, tags);
     }
 
-    // ✅ 3. Cleanup unused uploaded images
+    // ✅ Step 6: Cleanup unused uploaded images
     const usedImages = extractImageUrls(content);
     if (!usedImages.has(photoPath)) {
       usedImages.add(photoPath);
@@ -75,16 +94,21 @@ export async function POST(req: NextRequest) {
 
     const uploadDir = path.join(process.cwd(), 'public/uploads/posts');
     const files = await fs.readdir(uploadDir);
+
     for (const file of files) {
       const fileUrl = `/uploads/posts/${file}`;
       if (!usedImages.has(fileUrl) && !fileUrl.includes('default.jpg')) {
-        await fs.unlink(path.join(uploadDir, file)).catch(() => {});
+        try {
+          await fs.unlink(path.join(uploadDir, file));
+        } catch {
+          // File may already be deleted — ignore
+        }
       }
     }
 
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error('🔥 DB Insert Error:', err);
-    return NextResponse.json({ error: 'Database error' }, { status: 500 });
+    console.error('❌ Create Post Error:', err);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

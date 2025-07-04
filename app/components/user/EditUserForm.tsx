@@ -10,9 +10,13 @@ import ImageWithFallback from '@/app/components/global/ImageWithFallback';
 import PhoneNumberInput from '@/app/components/global/PhoneNumberInput';
 import AvatarCropModal from '@/app/components/user/images/AvatarCropModal';
 import AvatarMetaModal from '@/app/components/user/images/AvatarMetaModal';
-import Spinner from '@/app/components/global/Spinner';
+import Spinner from '@/app/components/layout/Spinner';
 
 import { MessageCircle, Smartphone, Send, Trash2 } from 'lucide-react';
+
+interface Country { id: number; name: string }
+interface State { id: number; name: string }
+interface City { id: number; name: string }
 
 export default function EditUserForm({ userId }: { userId: number }) {
   const { data: session, status } = useSession();
@@ -20,7 +24,6 @@ export default function EditUserForm({ userId }: { userId: number }) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  // 🧠 Form state initialization
   const [form, setForm] = useState({
     first_name: '',
     last_name: '',
@@ -32,70 +35,149 @@ export default function EditUserForm({ userId }: { userId: number }) {
     avatar_url: '',
     avatar_alt: '',
     avatar_title: '',
+    country_id: '',
+    state_id: '',
+    city_id: '',
   });
 
   const [previewUrl, setPreviewUrl] = useState('');
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [showCropper, setShowCropper] = useState(false);
   const [showMetaModal, setShowMetaModal] = useState(false);
+
   const [loading, setLoading] = useState(true);
   const [countdown, setCountdown] = useState(5);
 
-  // ⭐️ AMENDMENT ✅ Fallback to provider_account_id if email is missing
-  useEffect(() => {
+  const [countries, setCountries] = useState<Country[]>([]);
+  const [states, setStates] = useState<State[]>([]);
+  const [cities, setCities] = useState<City[]>([]);
+
+  async function fetchCountriesClient(): Promise<Country[]> {
+    const res = await fetch('/api/locations/countries');
+    const data = await res.json();
+    console.log('🌍 Loaded countries:', data);
+    return data;
+  }
+
+  async function fetchStatesClient(countryId: number): Promise<State[]> {
+    const res = await fetch(`/api/locations/states/${countryId}`);
+    const data = await res.json();
+    console.log(`🏙️ Loaded states for country ${countryId}:`, data);
+    return data;
+  }
+
+  async function fetchCitiesClient(stateId: number): Promise<City[]> {
+    const res = await fetch(`/api/locations/cities/${stateId}`);
+    const data = await res.json();
+    console.log(`🏘️ Loaded cities for state ${stateId}:`, data);
+    return data;
+  }
+
+ useEffect(() => {
+  async function loadUserData() {
     if (status !== 'authenticated' || !session?.user) return;
 
     const url = session.user.email
       ? `/api/user?email=${session.user.email}`
-      : session.user.provider_account_id // ⭐️ ✅ fallback logic added here
+      : session.user.provider_account_id
       ? `/api/user?providerId=${session.user.provider_account_id}`
       : null;
 
-    if (!url) {
-      console.error('No identifier to fetch user');
-      return;
-    }
+    if (!url) return;
 
-    fetch(url)
-      .then((res) => res.json())
-      .then((data) => {
-        setForm({
-          first_name: data.first_name || '',
-          last_name: data.last_name || '',
-          email: data.email || '',
-          phone: data.phone || '',
-          chat_app: data.chat_app || 'None',
-          website: data.website || '',
-          about_me: data.about_me || '',
-          avatar_url: data.avatar_url || '',
-          avatar_alt: data.avatar_alt || '',
-          avatar_title: data.avatar_title || '',
-        });
-        setPreviewUrl(data.avatar_url || '');
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error('❌ Failed to load user:', err);
-        setLoading(false);
-      });
-  }, [status, session?.user]);
+    try {
+      const [res, countriesData] = await Promise.all([
+        fetch(url),
+        fetchCountriesClient(),
+      ]);
+
+      const user = await res.json();
+      console.log('👤 Loaded user:', user);
+
+      const updatedForm = {
+        first_name: user.first_name ?? '',
+        last_name: user.last_name ?? '',
+        email: user.email ?? '',
+        phone: user.phone ?? '',
+        chat_app: user.chat_app ?? 'None',
+        website: user.website ?? '',
+        about_me: user.about_me ?? '',
+        avatar_url: user.avatar_url ?? '',
+        avatar_alt: user.avatar_alt ?? '',
+        avatar_title: user.avatar_title ?? '',
+        country_id: user.country_id != null ? String(user.country_id) : '',
+        state_id: user.state_id != null ? String(user.state_id) : '',
+        city_id: user.city_id != null ? String(user.city_id) : '',
+      };
+
+      console.log('✅ Updated form:', updatedForm);
+      setForm(updatedForm);
+      setPreviewUrl(user.avatar_url ?? '');
+      setCountries(countriesData);
+
+      if (user.country_id != null) {
+        const loadedStates = await fetchStatesClient(user.country_id);
+        console.log('✅ Loaded states:', loadedStates);
+        setStates(loadedStates);
+      }
+
+      if (user.state_id != null) {
+        const loadedCities = await fetchCitiesClient(user.state_id);
+        console.log('✅ Loaded cities:', loadedCities);
+        setCities(loadedCities);
+      }
+
+    } catch (err) {
+      console.error('❌ Failed to load user or location data', err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  loadUserData();
+}, [status, session?.user]);
+
 
   useEffect(() => {
-    let timer: NodeJS.Timeout;
     if (countdown > 0 && countdown < 5) {
-      timer = setTimeout(() => setCountdown((c) => c - 1), 1000);
+      const timer = setTimeout(() => setCountdown((c) => c - 1), 1000);
+      return () => clearTimeout(timer);
     } else if (countdown === 0) {
       router.push('/user');
     }
-    return () => clearTimeout(timer);
   }, [countdown, router]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+  const handleChange = async (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+  ) => {
     const { name, value } = e.target;
+    console.log(`✏️ Field changed: ${name} → ${value}`);
     setForm((prev) => ({ ...prev, [name]: value }));
+
+    if (name === 'country_id') {
+      const countryId = Number(value);
+      if (!isNaN(countryId)) {
+        console.log(`🔁 Reloading states for country_id ${countryId}`);
+        const loadedStates = await fetchStatesClient(countryId);
+        setStates(loadedStates);
+        setCities([]);
+        setForm((prev) => ({ ...prev, state_id: '', city_id: '' }));
+      }
+    }
+
+    if (name === 'state_id') {
+      const stateId = Number(value);
+      if (!isNaN(stateId)) {
+        console.log(`🔁 Reloading cities for state_id ${stateId}`);
+        const loadedCities = await fetchCitiesClient(stateId);
+        setCities(loadedCities);
+        setForm((prev) => ({ ...prev, city_id: '' }));
+      }
+    }
   };
 
   const handlePhoneChange = (value: string) => {
+    console.log('📞 Phone changed:', value);
     setForm((prev) => ({ ...prev, phone: value }));
   };
 
@@ -108,6 +190,7 @@ export default function EditUserForm({ userId }: { userId: number }) {
 
   const handleDeleteAvatar = async () => {
     try {
+      console.log('🗑️ Deleting avatar:', form.avatar_url);
       const res = await fetch('/api/avatar/delete', {
         method: 'POST',
         body: JSON.stringify({ url: form.avatar_url }),
@@ -120,16 +203,12 @@ export default function EditUserForm({ userId }: { userId: number }) {
         body: (() => {
           const body = new FormData();
           body.append('id', userId.toString());
-          body.append('first_name', form.first_name);
-          body.append('last_name', form.last_name);
-          body.append('email', form.email);
-          body.append('phone', '');
-          body.append('chat_app', form.chat_app);
-          body.append('website', form.website);
-          body.append('about_me', form.about_me);
-          body.append('avatar_url', '/uploads/avatars/default.jpg');
-          body.append('avatar_alt', '');
-          body.append('avatar_title', '');
+          Object.entries({
+            ...form,
+            avatar_url: '/uploads/avatars/default.jpg',
+            avatar_alt: '',
+            avatar_title: '',
+          }).forEach(([k, v]) => body.append(k, v || ''));
           return body;
         })(),
       });
@@ -141,7 +220,6 @@ export default function EditUserForm({ userId }: { userId: number }) {
         avatar_url: '/uploads/avatars/default.jpg',
         avatar_alt: '',
         avatar_title: '',
-        phone: '',
       }));
       setPreviewUrl('/uploads/avatars/default.jpg');
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -154,25 +232,19 @@ export default function EditUserForm({ userId }: { userId: number }) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('📤 Submitting form data:', form);
     startTransition(async () => {
       try {
         const body = new FormData();
         body.append('id', userId.toString());
-        Object.entries(form).forEach(([key, val]) => {
-          body.append(key, val || '');
-        });
+        Object.entries(form).forEach(([key, val]) => body.append(key, val || ''));
 
         const res = await fetch('/api/user/edit', {
           method: 'POST',
           body,
         });
 
-        if (!res.ok) {
-          const text = await res.text();
-          console.error('❌ Response text:', text);
-          throw new Error('❌ Failed to save user');
-        }
-
+        if (!res.ok) throw new Error('Failed to save user');
         toast.success('Profile updated — redirecting in 3s...');
         setCountdown(2);
       } catch (err) {
@@ -201,7 +273,7 @@ export default function EditUserForm({ userId }: { userId: number }) {
           />
         </div>
         {previewUrl && (
-          <button type="button" className="delete-avatar-button" onClick={handleDeleteAvatar} title="Delete avatar">
+          <button type="button" className="delete-avatar-button" onClick={handleDeleteAvatar}>
             <Trash2 size={16} /> Remove
           </button>
         )}
@@ -210,7 +282,7 @@ export default function EditUserForm({ userId }: { userId: number }) {
       <input type="file" accept="image/*" ref={fileInputRef} onChange={handleFileChange} />
       <input name="first_name" value={form.first_name} onChange={handleChange} placeholder="First Name" required />
       <input name="last_name" value={form.last_name} onChange={handleChange} placeholder="Last Name" required />
-      <input name="email" value={form.email} onChange={handleChange} placeholder="Email" type="email" required />
+      <input name="email" value={form.email} onChange={handleChange} placeholder="Email" required type="email" />
 
       <label htmlFor="phone">Phone</label>
       <PhoneNumberInput value={form.phone} onChange={handlePhoneChange} name="phone" />
@@ -229,6 +301,30 @@ export default function EditUserForm({ userId }: { userId: number }) {
           {form.chat_app === 'Signal' && <MessageCircle size={16} />}
         </span>
       </div>
+
+      <label>Country</label>
+      <select name="country_id" value={form.country_id} onChange={handleChange} required>
+        <option value="">Select Country</option>
+        {countries.map((c) => (
+          <option key={c.id} value={String(c.id)}>{c.name}</option>
+        ))}
+      </select>
+
+      <label>State</label>
+      <select name="state_id" value={form.state_id} onChange={handleChange} required>
+        <option value="">Select State</option>
+        {states.map((s) => (
+          <option key={s.id} value={String(s.id)}>{s.name}</option>
+        ))}
+      </select>
+
+      <label>City</label>
+      <select name="city_id" value={form.city_id} onChange={handleChange} required>
+        <option value="">Select City</option>
+        {cities.map((c) => (
+          <option key={c.id} value={String(c.id)}>{c.name}</option>
+        ))}
+      </select>
 
       <input name="website" value={form.website} onChange={handleChange} placeholder="Website" type="url" />
       <textarea name="about_me" value={form.about_me} onChange={handleChange} placeholder="About Me" />

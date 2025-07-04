@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import path from 'path';
 import fs from 'fs/promises';
 
-import { auth } from '@/app/lib/auth';
+import { auth } from '@/app/lib/auth/auth';
 
 const FALLBACK_PHOTO = '/uploads/posts/default.jpg';
 const UPLOAD_DIR = path.join(process.cwd(), 'public/uploads/posts');

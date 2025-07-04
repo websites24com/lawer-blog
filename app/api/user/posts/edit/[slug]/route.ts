@@ -1,9 +1,10 @@
 'use server';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/app/lib/auth';
 import { db } from '@/app/lib/db';
 import { savePostTags } from '@/app/lib/tags';
+import { RequireAuth } from '@/app/lib/auth/requireAuth';
+import { ROLES } from '@/app/lib/auth/roles';
 
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
@@ -23,10 +24,10 @@ function extractHashtags(input: string): string[] {
 
 export async function POST(req: NextRequest, { params }: { params: { slug: string } }) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    // ✅ Centralized auth with roles
+    const { user } = await RequireAuth({
+      roles: [ROLES.USER, ROLES.MODERATOR, ROLES.ADMIN],
+    });
 
     const formData = await req.formData();
 
@@ -40,12 +41,18 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
 
     const hashtags = extractHashtags(tagsString);
 
-    // ✅ Get post ID by slug
-    const [rows] = await db.query('SELECT id FROM posts WHERE slug = ?', [params.slug]);
+    // ✅ Get post ID and owner
+    const [rows] = await db.query('SELECT id, user_id FROM posts WHERE slug = ?', [params.slug]);
     const post = (rows as any[])[0];
     if (!post) return NextResponse.json({ error: 'Post not found' }, { status: 404 });
 
-    const postId = post.id;
+    const isOwner = post.user_id === user.id;
+    const isPrivileged = [ROLES.ADMIN, ROLES.MODERATOR].includes(user.role);
+
+    if (!isOwner && !isPrivileged) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     let featuredPhotoUrl = formData.get('featured_photo_url')?.toString() || FALLBACK_PHOTO;
 
     // ✅ Save new uploaded photo (if any)
@@ -70,11 +77,11 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     // ✅ Update post
     await db.query(
       `UPDATE posts SET title = ?, excerpt = ?, content = ?, category_id = ?, featured_photo = ? WHERE id = ?`,
-      [title, excerpt, content, categoryId, featuredPhotoUrl, postId]
+      [title, excerpt, content, categoryId, featuredPhotoUrl, post.id]
     );
 
     // ✅ Save tags
-    await savePostTags(postId, hashtags);
+    await savePostTags(post.id, hashtags);
 
     return NextResponse.json({ success: true });
   } catch (err) {

@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/app/lib/auth';
+import { RequireAuth } from '@/app/lib/auth/requireAuth';
+import { ROLES } from '@/app/lib/auth/roles';
 import path from 'path';
 import fs from 'fs/promises';
 
 // ✅ POST handler to delete removed TipTap images (specific for EditPostForm)
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   try {
+    // ✅ Auth check with role restriction
+    const { user } = await RequireAuth({
+      roles: [ROLES.USER, ROLES.MODERATOR, ROLES.ADMIN],
+    });
+
     const { oldContent, newContent } = await req.json();
 
     // ✅ Extract image URLs from HTML content

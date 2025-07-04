@@ -4,7 +4,7 @@ import Cropper from 'react-easy-crop';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import getCroppedImg from '@/app/utils/postImages/cropImage';
-import Spinner from '@/app/components/global/Spinner'; // ✅ Your Spinner component
+import Spinner from '@/app/components/layout/Spinner'; // ✅ Your Spinner component
 
 import type { Area } from 'react-easy-crop';
 

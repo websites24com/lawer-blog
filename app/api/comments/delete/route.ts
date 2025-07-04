@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/app/lib/db';
-import { auth } from '@/app/lib/auth';
+import { auth } from '@/app/lib/auth/auth';
 
 export async function DELETE(req: Request) {
   try {

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/app/lib/db';
 import { getServerSession } from 'next-auth';
-import { authConfig } from '@/app/lib/authConfig'; // ✅ Correct auth config path
+import { authConfig } from '@/app/lib/auth/authConfig'; // ✅ Correct auth config path
 import type { UserRow } from '@/app/lib/definitions';
 
 // PATCH /api/comments/edit

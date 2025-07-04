@@ -1,8 +1,8 @@
 import { readdir, unlink } from 'fs/promises';
 import path from 'path';
 import { db } from '@/app/lib/db';
-import { requireAuth } from '@/app/lib/auth-utils';
-import { ROLES } from '@/app/lib/roles'; // ✅ reuse ROLES constants
+import { requireAuth } from '@/app/lib/auth/requireAuth';
+import { ROLES } from '@/app/lib/auth/roles'; // ✅ reuse ROLES constants
 
 export async function POST() {
   try {

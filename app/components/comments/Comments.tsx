@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import toast from 'react-hot-toast';
 
-import Spinner from '@/app/components/global/Spinner';
+import Spinner from '@/app/components/layout/Spinner';
 import ImageWithFallback from '@/app/components/global/ImageWithFallback';
 import FancyDate from '@/app/components/global/date/FancyDate';
 import TimeFromDate from '@/app/components/global/date/TimeFromDate';

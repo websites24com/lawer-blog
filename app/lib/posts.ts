@@ -267,8 +267,6 @@ export async function getAllCategories(): Promise<{ id: number; name: string }[]
   return rows as { id: number; name: string }[];
 }
 
-
-
 /**
  * Get all approved posts by tag slug
  */

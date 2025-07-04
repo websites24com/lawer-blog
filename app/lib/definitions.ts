@@ -1,3 +1,22 @@
+export const ROLES = {
+  USER: 'USER',
+  MODERATOR: 'MODERATOR',
+  ADMIN: 'ADMIN',
+} as const;
+
+export type UserRole = (typeof ROLES)[keyof typeof ROLES];
+
+export const ALL_ROLES: UserRole[] = Object.values(ROLES);
+
+export type SessionUser = {
+  id: number;
+  email: string | null;
+  role: UserRole;
+  avatar_url: string | null;
+  provider: string | null;
+  provider_account_id: string | null;
+};
+
 export type UserRow = {
   id: number;
   first_name: string;
@@ -10,14 +29,21 @@ export type UserRow = {
   avatar_url: string | null;
   avatar_alt: string | null;
   avatar_title: string | null;
-  role: 'USER' | 'MODERATOR' | 'ADMIN';
+  role: UserRole;
   status: 'pending' | 'approved' | 'declined' | 'frozen';
   provider: string | null;
   provider_account_id: string | null;
   website: string | null;
   about_me: string | null;
+  country_id: number | null;
+  state_id: number | null;
+  city_id: number | null;
+  location: { lat: number; lon: number };
   created_at: string;
+
+  
 };
+
 
 export type SimpleUser = {
   id: number;
@@ -27,6 +53,17 @@ export type SimpleUser = {
   avatar_url: string | null;
 };
 
+export type FullUserData = UserRow & {
+  country_name: string | null;
+  state_name: string | null;
+  city_name: string | null;
+  posts: PostSummary[];
+  comments: Comment[];
+  followed_posts: PostSummary[];
+  followers: SimpleUser[];
+};
+
+
 export type PostSummary = {
   id: number;
   slug: string;
@@ -35,7 +72,7 @@ export type PostSummary = {
   featured_photo: string | null;
 };
 
-type PaginationParams = {
+export type PaginationParams = {
   postsPage?: number;
   commentsPage?: number;
   followersPage?: number;
@@ -43,27 +80,21 @@ type PaginationParams = {
   pageSize?: number;
 };
 
-
 export type Comment = {
   id: number;
   post_id: number;
   parent_id: number | null;
   message: string;
   created_at: string;
-  status?: 'pending' | 'approved' | 'declined';
-  edited_by?: number | null;
-  edited_at?: string | null;
-
-  // 👇 Required for showing post info in user profile
+  status: 'pending' | 'approved' | 'declined';
+  edited_by: number | null;
+  edited_at: string | null;
   post_slug: string;
-  post_title?: string;
-
-  // 👇 Optional: if you're showing user info inside comments
-  first_name?: string;
-  last_name?: string;
-  avatar_url?: string;
+  post_title: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  avatar_url: string | null;
 };
-
 
 export type CommentWithUser = {
   id: number;
@@ -78,15 +109,10 @@ export type CommentWithUser = {
   created_at: string;
   edited_by: number | null;
   edited_at: string | null;
-  replies: CommentWithUser[]; // ✅ Nested support
+  replies: CommentWithUser[];
 };
 
-export type FullUserData = UserRow & {
-  posts: PostSummary[];
-  comments: Comment[];
-  followed_posts: PostSummary[];
-  followers: SimpleUser[];
-};
+
 
 export type Category = {
   id: number;
@@ -110,13 +136,14 @@ export type PostWithDetails = {
   updated_at: string;
   edited_by: number | null;
   edited_at: string | null;
+  country_id: number | null;
+  state_id: number | null;
+  city_id: number | null;
+  location: { lat: number; lon: number };
   user: SimpleUser;
   category: Category;
-  followed_by_current_user?: boolean;
+  followed_by_current_user: boolean;
   comments: CommentWithUser[];
 };
-
-
-// Geolocation
 
 export type formRef = React.RefObject<HTMLFormElement>;

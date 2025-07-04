@@ -3,7 +3,10 @@ import { Providers } from './providers';
 import { Metadata } from 'next';
 import { Toaster } from 'react-hot-toast';
 import { ThemeProvider } from 'next-themes';
-import Header from '@/app/components/layout/Header'; // 👈 import your header
+import Header from '@/app/components/layout/Header';
+import ErrorBoundary from './components/errors/ErrorBoundary';
+
+
 
 export const metadata: Metadata = {
   title: {
@@ -23,8 +26,10 @@ export default function DashboardLayout({
         <ThemeProvider attribute="data-theme" defaultTheme="light">
           <Providers>
             <Toaster />
-            <Header /> {/* ✅ your theme toggle is here */}
-            <main>{children}</main>
+            <Header />
+            <ErrorBoundary>
+              <main>{children}</main>
+            </ErrorBoundary>
           </Providers>
         </ThemeProvider>
       </body>

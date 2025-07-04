@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState, useTransition } from 'react';
-import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import { signOut } from 'next-auth/react';
 import toast from 'react-hot-toast';
 import { confirmAlert } from 'react-confirm-alert';
 import 'react-confirm-alert/src/react-confirm-alert.css';
@@ -10,7 +10,7 @@ import 'react-confirm-alert/src/react-confirm-alert.css';
 import ImageWithFallback from '@/app/components/global/ImageWithFallback';
 import FollowPostButton from '@/app/components/posts/FollowPostButton';
 import ActionButton from '@/app/components/global/ActionButton';
-import Spinner from '@/app/components/global/Spinner';
+import Spinner from '@/app/components/layout/Spinner';
 import FancyDate from '@/app/components/global/date/FancyDate';
 import TimeFromDate from '@/app/components/global/date/TimeFromDate';
 import RenderWebsite from '@/app/components/global/RenderWebsite';
@@ -24,79 +24,68 @@ import CommentDeleteButton from '@/app/components/comments/CommentDeleteButton';
 import CommentsPagination from '@/app/components/comments/CommentsPagination';
 import PaginatedList from '@/app/components/global/pagination/PaginatedList';
 
-import type { UserRow, PostSummary, Comment, SimpleUser } from '@/app/lib/definitions';
-
-type FullUserData = UserRow & {
-  posts: PostSummary[];
-  comments: Comment[];
-  followed_posts: PostSummary[];
-  followers: SimpleUser[];
-};
+import { useCurrentUser } from '@/app/hooks/useCurrentUser';
 
 export default function UserPage() {
-  const { data: session, status } = useSession();
+  // ⬇️ Destructure all returned values from your custom hook
+  const { userData, loading, error, resolved, status, refetch } = useCurrentUser();
+
+  // ⬇️ Next.js App Router hook for navigation
   const router = useRouter();
-  const [userData, setUserData] = useState<FullUserData | null>(null);
-  const [loading, setLoading] = useState(true);
+
+  // ⬇️ Track UI transitions (used during async operations)
   const [isPending, startTransition] = useTransition();
 
+  // ⬇️ Track which comment is currently being edited (null = none)
   const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
+
+  // ⬇️ Current page for paginating comments
   const [commentPage, setCommentPage] = useState(1);
+
+  // ⬇️ Fixed number of comments per page
   const commentsPerPage = 5;
 
-  const fetchUserData = async () => {
-    if (!session || !session.user) return;
-
-    const query = session.user.email
-      ? `email=${encodeURIComponent(session.user.email)}`
-      : session.user.provider_account_id
-      ? `providerId=${encodeURIComponent(session.user.provider_account_id)}`
-      : '';
-
-    if (!query) return;
-
-    try {
-      const res = await fetch(`/api/user?${query}`);
-      if (!res.ok) throw new Error('Failed to fetch user data');
-      const data = await res.json();
-      setUserData(data);
-    } catch {
-      toast.error('Failed to refresh user data');
-    }
-  };
-
+  // ⬇️ This effect runs once loading is resolved
+  // If we finished loading and still don't have userData, it means user is not authenticated
+  // In that case, we redirect to the login page — but only inside useEffect (not during render)
   useEffect(() => {
-    if (status === 'authenticated' && session?.user) {
-      fetchUserData().then(() => setLoading(false));
+    if (!loading && resolved && !userData) {
+      router.push('/login');
     }
-  }, [status, session]);
+  }, [loading, resolved, userData, router]);
 
-  if (status === 'loading' || loading) return <Spinner />;
-  if (!session || !session.user) {
-    router.push('/login');
-    return null;
-  }
-  if (!userData) return <p>Error loading user data.</p>;
+  // ⬇️ While session or data is loading, show spinner
+  // This prevents flicker or null data usage before the hook finishes
+  if (status === 'loading' || loading || !resolved) return <Spinner />;
 
+  // ⬇️ After loading is resolved: if userData is still missing, we don't render anything.
+  // router.push('/login') already ran above in useEffect.
+  if (!userData) return null;
+
+  // ⬇️ Ensure we always display a correct and safe avatar URL
+  // If avatar is an external link or starts with known folder, use as-is
+  // Otherwise, prepend the /uploads/avatars/ path to make it a valid URL
   const resolvedAvatarUrl =
     userData.avatar_url?.startsWith('http') || userData.avatar_url?.startsWith('/uploads/avatars/')
       ? userData.avatar_url
       : `/uploads/avatars/${userData.avatar_url}`;
 
+  // ⬇️ Handle unfollowing a post
+  // Wrapped in startTransition to signal React this is an async state update
   const handleUnfollow = async (postId: number) => {
     startTransition(async () => {
       try {
-        await unfollowPost(postId);
-        setUserData((prev) =>
-          prev ? { ...prev, followed_posts: prev.followed_posts.filter((p) => p.id !== postId) } : prev
-        );
-        toast.success('Post unfollowed');
+        await unfollowPost(postId); // Send request to unfollow
+        toast.success('Post unfollowed'); // Notify user
+        await refetch(); // Refresh user data
       } catch {
-        toast.error('Failed to unfollow post');
+        toast.error('Failed to unfollow post'); // Show error toast if anything fails
       }
     });
   };
 
+  // ⬇️ Handle post deletion with confirmation modal
+  // Uses react-confirm-alert to prompt user before executing
   const handleDeletePost = (postId: number) => {
     confirmAlert({
       title: 'Confirm Deletion',
@@ -107,22 +96,24 @@ export default function UserPage() {
           onClick: () => {
             startTransition(async () => {
               try {
-                const res = await fetch(`/api/user/posts/delete/${postId}`, { method: 'DELETE' });
-                if (!res.ok) throw new Error();
-                setUserData((prev) =>
-                  prev ? { ...prev, posts: prev.posts.filter((p) => p.id !== postId) } : prev
-                );
-                toast.success('Post deleted');
+                const res = await fetch(`/api/user/posts/delete/${postId}`, {
+                  method: 'DELETE',
+                });
+                if (!res.ok) throw new Error(); // If backend didn't return 200 OK, throw
+                toast.success('Post deleted'); // Notify success
+                await refetch(); // Refresh user data
               } catch {
-                toast.error('Failed to delete post');
+                toast.error('Failed to delete post'); // Notify error
               }
             });
           },
         },
-        { label: 'No' },
+        { label: 'No' }, // No-op if user cancels
       ],
     });
   };
+
+
 
   const totalPages = Math.ceil(userData.comments.length / commentsPerPage);
   const paginatedComments = userData.comments.slice(
@@ -153,6 +144,9 @@ export default function UserPage() {
         <p><strong>Email:</strong> <RenderEmail email={userData.email} /></p>
         <p><strong>Phone:</strong> <RenderPhone phone={userData.phone}/> {userData.chat_app ? `(${userData.chat_app})` : ''}</p>
         <p><strong>Website:</strong> <RenderWebsite url={userData.website}/></p>
+        <p><strong>Country:</strong> {formatOrDash(userData.country_name)}</p>
+        <p><strong>State:</strong> {formatOrDash(userData.state_name)}</p>
+        <p><strong>The closest city:</strong> {formatOrDash(userData.city_name)}</p>
         <p><strong>About Me:</strong> {formatOrDash(userData.about_me)}</p>
         <p><strong>Provider:</strong> {formatOrDash(userData.provider)}</p>
         <p><strong>Account ID:</strong> {userData.provider_account_id || userData.id}</p>
@@ -166,60 +160,48 @@ export default function UserPage() {
         </div>
       </div>
 
-      {/* My Posts */}
-     {/* My Posts */}
-<div className="user-section">
-  <h2>📝 My Posts</h2>
-  <ActionButton onClick={() => router.push('/blog/create')} title="Create a new blog post">
-    ➕ Create Post
-  </ActionButton>
-  {userData.posts?.length > 0 ? (
-    <PaginatedList
-      items={userData.posts}
-      noItemsMessage="You haven’t published any posts."
-      renderItem={(post) => {
-        // ✅ Debugging each post
-        console.log('🧪 DEBUG POST:', post.id, post.slug);
+      <div className="user-section">
+        <h2>📝 My Posts</h2>
+        <ActionButton onClick={() => router.push('/blog/create')} title="Create a new blog post">
+          ➕ Create Post
+        </ActionButton>
+        {userData.posts?.length > 0 ? (
+          <PaginatedList
+            items={userData.posts}
+            noItemsMessage="You haven’t published any posts."
+            renderItem={(post) => (
+              <li
+                key={post.id}
+                style={{ marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid #ccc' }}
+              >
+                <div style={{ maxWidth: '300px', marginBottom: '0.5rem' }}>
+                  <ImageWithFallback
+                    src={post.featured_photo || '/uploads/posts/default.jpg'}
+                    alt={post.title}
+                    className="fallback-image"
+                    wrapperClassName="image-wrapper"
+                    imageType="post"
+                  />
+                </div>
+                <strong>{post.title}</strong> ({post.status})
+                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                  <ActionButton onClick={() => router.push(`/blog/${post.slug}`)}>👁️ View</ActionButton>
+                  <ActionButton onClick={() => router.push(`/blog/edit/${post.slug}`)}>✏️ Edit</ActionButton>
+                  <ActionButton onClick={() => handleDeletePost(post.id)}>🗑️ Delete</ActionButton>
+                </div>
+              </li>
+            )}
+          />
+        ) : (
+          <p>You haven’t published any posts.</p>
+        )}
+      </div>
 
-        return (
-          <li
-            key={post.id}
-            style={{ marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid #ccc' }}
-          >
-            <div style={{ maxWidth: '300px', marginBottom: '0.5rem' }}>
-              <ImageWithFallback
-                src={post.featured_photo || '/uploads/posts/default.jpg'}
-                alt={post.title}
-                className="fallback-image"
-                wrapperClassName="image-wrapper"
-                imageType="post"
-              />
-            </div>
-
-            <strong>{post.title}</strong> ({post.status})
-
-            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-              <ActionButton onClick={() => router.push(`/blog/${post.slug}`)}>👁️ View</ActionButton>
-              <ActionButton onClick={() => router.push(`/blog/edit/${post.slug}`)}>✏️ Edit</ActionButton>
-              <ActionButton onClick={() => handleDeletePost(post.id)}>🗑️ Delete</ActionButton>
-            </div>
-          </li>
-        );
-      }}
-    />
-  ) : (
-    <p>You haven’t published any posts.</p>
-  )}
-</div>
-
-
-      {/* Followed Posts */}
       <div className="user-section">
         <h2>⭐ Followed Posts</h2>
         {userData.followed_posts?.length > 0 ? (
           <PaginatedList
             items={userData.followed_posts}
-           
             noItemsMessage="You haven’t followed any posts yet."
             renderItem={(post) => (
               <li key={post.id}>
@@ -242,7 +224,6 @@ export default function UserPage() {
         )}
       </div>
 
-      {/* Comments */}
       <div className="user-section">
         <h2>🗨️ My Comments</h2>
         {userData.comments.length > 0 ? (
@@ -255,13 +236,12 @@ export default function UserPage() {
                     <p style={{ marginBottom: '0.5rem' }}>
                       <strong>{comment.name}</strong> — <FancyDate dateString={comment.created_at} />
                     </p>
-
                     {isEditing ? (
                       <CommentEditForm
                         commentId={comment.id}
                         initialContent={comment.message}
                         onCancel={() => setEditingCommentId(null)}
-                        onSuccess={fetchUserData}
+                        onSuccess={refetch}
                       />
                     ) : (
                       <>
@@ -273,7 +253,7 @@ export default function UserPage() {
                         )}
                         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                           <ActionButton onClick={() => setEditingCommentId(comment.id)}>✏️ Edit</ActionButton>
-                          <CommentDeleteButton commentId={comment.id} onDeleted={fetchUserData} />
+                          <CommentDeleteButton commentId={comment.id} onDeleted={refetch} />
                           {comment.post_slug && (
                             <ActionButton onClick={() => window.open(`/blog/${comment.post_slug}`, '_blank')}>
                               👁️ View Post
@@ -297,20 +277,17 @@ export default function UserPage() {
         )}
       </div>
 
-      {/* Followers */}
       <div className="user-section">
         <h2>👥 Followers</h2>
         {userData.followers?.length > 0 ? (
           <PaginatedList
             items={userData.followers}
-           
             noItemsMessage="No followers yet."
             renderItem={(follower) => {
               const avatar =
                 follower.avatar_url?.startsWith('http') || follower.avatar_url?.startsWith('/uploads/avatars/')
                   ? follower.avatar_url
                   : `/uploads/avatars/${follower.avatar_url}`;
-
               return (
                 <li key={follower.id}>
                   <div className="image-wrapper-avatar">

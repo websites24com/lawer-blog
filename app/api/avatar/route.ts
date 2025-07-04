@@ -3,7 +3,7 @@ import sharp from 'sharp';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { v4 as uuid } from 'uuid';
-import { auth } from '@/app/lib/auth';
+import { auth } from '@/app/lib/auth/auth';
 
 const MAX_FILE_SIZE = 1 * 1024 * 1024;
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];

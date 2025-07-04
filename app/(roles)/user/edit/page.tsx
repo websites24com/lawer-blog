@@ -1,16 +1,13 @@
-// lawyer-blog/app/user/edit/page.tsx
-import EditUserForm from '@/app/components/user/EditUserForm';
-import { auth } from '@/app/lib/auth'; // ⬅️ your server-side session util
+// app/user/edit/page.tsx
 
-import { redirect } from 'next/navigation';
+import EditUserForm from '@/app/components/user/EditUserForm';
+import { requireAuth } from '@/app/lib/auth/requireAuth';
+
+import { ALL_ROLES } from '@/app/lib/definitions';
 
 export default async function EditUserPage() {
-  const session = await auth();
+  // ✅ Enforce authentication — only logged-in users can access
+ const { user} = await requireAuth({ roles: ALL_ROLES });
 
-  // ✅ Redirect if not logged in
-  if (!session?.user?.id) {
-    redirect('/login');
-  }
-
-  return <EditUserForm userId={session.user.id} />;
+  return <EditUserForm userId={user.id} />;
 }

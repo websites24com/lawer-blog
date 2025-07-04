@@ -1,40 +1,41 @@
-import { auth } from '@/app/lib/auth';
-import { getPostsByTag } from '@/app/lib/posts';
+import { auth } from '@/app/lib/auth/auth';
+import { getAllApprovedPosts, getApprovedPostCount } from '@/app/lib/posts';
 import type { PostSummary } from '@/app/lib/definitions';
+import FollowButton from '@/app/components/posts/FollowPostButton';
 import ImageWithFallback from '@/app/components/global/ImageWithFallback';
 import FancyDate from '@/app/components/global/date/FancyDate';
-import FollowButton from '@/app/components/posts/FollowPostButton';
 import Pagination from '@/app/components/global/pagination/Pagination';
 import Link from 'next/link';
 
-// Helper to strip HTML tags from excerpt
+// Helper to clean HTML tags from excerpt
 function stripHtml(html: string): string {
   return html.replace(/<[^>]*>?/gm, '');
 }
 
-type TagPageProps = {
-  params: { slug: string };
+// Blog page with server-side pagination
+export default async function BlogPage({
+  searchParams,
+}: {
   searchParams?: { page?: string };
-};
-
-export default async function TagPage({ params, searchParams }: TagPageProps) {
+}) {
   const session = await auth();
   const userId = session?.user?.id || 0;
+
   const currentPage = Number(searchParams?.page) || 1;
   const pageSize = 3;
 
-  // ✅ Destructure posts and totalCount from updated getPostsByTag
-  const { posts, totalCount } = await getPostsByTag(params.slug, userId, currentPage, pageSize);
-  const totalPages = Math.ceil(totalCount / pageSize);
+  const posts: PostSummary[] = await getAllApprovedPosts(userId, currentPage, pageSize);
+  const totalPosts = await getApprovedPostCount();
+  const totalPages = Math.ceil(totalPosts / pageSize);
 
   return (
     <main>
-      <h1>Posts tagged with: #{params.slug}</h1>
+      <h1>Blog</h1>
 
-      {posts.length === 0 && <p>No posts found for this tag.</p>}
+      {posts.length === 0 && <p>No posts found.</p>}
 
       <ul>
-        {posts.map((post: PostSummary) => (
+        {posts.map((post) => (
           <li key={post.id}>
             <Link href={`/blog/${post.slug}`}>
               <div style={{ borderBottom: '1px solid #ccc', padding: '1rem 0' }}>
@@ -71,11 +72,11 @@ export default async function TagPage({ params, searchParams }: TagPageProps) {
         ))}
       </ul>
 
-      {/* ✅ Pagination component */}
+      {/* ✅ PAGINATION with SCSS styles */}
       <Pagination
         currentPage={currentPage}
         totalPages={totalPages}
-        basePath={`/blog/tag/${params.slug}`}
+        basePath="/blog"
       />
     </main>
   );

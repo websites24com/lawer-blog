@@ -1,7 +1,7 @@
 'use server';
 
 import { deletePost } from '@/app/lib/admin';
-import { auth } from '@/app/lib/auth';
+import { auth } from '@/app/lib/auth/auth';
 import { db } from '@/app/lib/db';
 import type { PostWithDetails, PostRow, CategoryRow } from '@/app/lib/definitions';
 

@@ -1,34 +1,20 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
 import { User } from 'lucide-react';
 import Head from 'next/head';
 import ThemeToggle from './ThemeToggle';
+import { useCurrentUser } from '@/app/hooks/useCurrentUser';
 
 export default function Header() {
   const router = useRouter();
-  const { data: session, status } = useSession();
+  const { userData, status, loading } = useCurrentUser();
 
-  const handleUserClick = async () => {
-    if (status === 'loading') return;
+  const handleUserClick = () => {
+    if (loading) return;
 
-    const user = session?.user;
-
-    const hasValidId = typeof user?.id === 'number' || typeof user?.id === 'string';
-    const hasEmailOrProvider = typeof user?.email === 'string' || hasValidId;
-
-    if (status === 'authenticated' && hasValidId && hasEmailOrProvider) {
-      try {
-        // ⛔ Validate user truly exists in DB (important for OAuth edge cases)
-        const res = await fetch(`/api/user?email=${encodeURIComponent(user?.email || '')}`);
-        if (!res.ok) throw new Error('User not found');
-        const data = await res.json();
-        if (!data || !data.id) throw new Error('User data invalid');
-        router.push('/user');
-      } catch (err) {
-        router.push('/auth'); // 🔁 fallback if DB lookup fails
-      }
+    if (status === 'authenticated' && userData) {
+      router.push('/user');
     } else {
       router.push('/auth');
     }

@@ -1,4 +1,3 @@
-// 📁 File: app/lib/users.ts
 import { db } from '@/app/lib/db';
 import type { FullUserData, SimpleUser, Comment, PostSummary } from '@/app/lib/definitions';
 import type { RowDataPacket } from 'mysql2';
@@ -22,28 +21,88 @@ async function getPostsByUserId(userId: number): Promise<PostSummary[]> {
   }));
 }
 
+
+
+
 // 👤 Fetch full user profile using email or provider_account_id
-export async function getUserWithDetails({ email, providerId }: { email?: string; providerId?: string; }): Promise<FullUserData | null> {
+export async function getUserWithDetails({
+  email,
+  providerId,
+}: {
+  email?: string;
+  providerId?: string;
+}): Promise<FullUserData | null> {
   let query = '';
   let value: string | undefined;
 
-  // 🔎 Determine how to fetch user
   if (providerId) {
-    query = 'SELECT * FROM users WHERE provider_account_id = ? LIMIT 1';
+    query = `
+      SELECT 
+        users.*, 
+        countries.name AS country_name,
+        states.name AS state_name,
+        cities.name AS city_name
+      FROM users
+      LEFT JOIN countries ON users.country_id = countries.id
+      LEFT JOIN states ON users.state_id = states.id
+      LEFT JOIN cities ON users.city_id = cities.id
+      WHERE users.provider_account_id = ?
+      LIMIT 1
+    `;
     value = providerId;
   } else if (email) {
-    query = 'SELECT * FROM users WHERE email = ? LIMIT 1';
+    query = `
+      SELECT 
+        users.*, 
+        countries.name AS country_name,
+        states.name AS state_name,
+        cities.name AS city_name
+      FROM users
+      LEFT JOIN countries ON users.country_id = countries.id
+      LEFT JOIN states ON users.state_id = states.id
+      LEFT JOIN cities ON users.city_id = cities.id
+      WHERE users.email = ?
+      LIMIT 1
+    `;
     value = email;
   }
+
   if (!query || !value) return null;
 
-  const [users] = await db.query<RowDataPacket[]>(query, [value]);
-  const user = users[0];
+  type UserJoinedRow = RowDataPacket & {
+    id: number;
+    first_name: string;
+    last_name: string;
+    email: string | null;
+    password: string | null;
+    phone: string | null;
+    chat_app: string;
+    avatar_url: string | null;
+    avatar_alt: string | null;
+    avatar_title: string | null;
+    role: string;
+    status: string;
+    provider: string | null;
+    provider_account_id: string | null;
+    website: string | null;
+    about_me: string | null;
+    slug: string;
+    created_at: string;
+    country_id: number | null;
+    state_id: number | null;
+    city_id: number | null;
+    location: any;
+    country_name: string | null;
+    state_name: string | null;
+    city_name: string | null;
+  };
+
+  const [rows] = await db.query<UserJoinedRow[]>(query, [value]);
+  const user = rows[0];
   if (!user) return null;
 
   const posts = await getPostsByUserId(user.id);
 
-  // 🗨️ Get user comments + post info (slug/title) for View Post buttons
   const [comments] = await db.query<RowDataPacket[]>(
     `SELECT 
        c.id, c.message, c.created_at, c.post_id, c.parent_id,
@@ -58,7 +117,6 @@ export async function getUserWithDetails({ email, providerId }: { email?: string
     [user.id]
   );
 
-  // ⭐ Followed posts
   const [followedPosts] = await db.query<RowDataPacket[]>(
     `SELECT p.id, p.title, p.slug, p.featured_photo
      FROM followed_posts fp
@@ -68,7 +126,6 @@ export async function getUserWithDetails({ email, providerId }: { email?: string
     [user.id]
   );
 
-  // 👥 Followers (users who follow this profile)
   const [followers] = await db.query<RowDataPacket[]>(
     `SELECT u.id, u.first_name, u.last_name, u.avatar_url, u.created_at, u.slug
      FROM user_followers uf
@@ -85,17 +142,24 @@ export async function getUserWithDetails({ email, providerId }: { email?: string
     email: user.email,
     avatar_url: user.avatar_url,
     phone: user.phone,
-    chat_app: user.chat_app,
+    chat_app: user.chat_app as any,
     provider: user.provider,
     provider_account_id: user.provider_account_id,
-    role: user.role,
-    status: user.status,
+    role: user.role as any,
+    status: user.status as any,
     created_at: user.created_at,
     website: user.website,
     about_me: user.about_me,
     slug: user.slug,
     avatar_alt: user.avatar_alt,
     avatar_title: user.avatar_title,
+    country_id: user.country_id,
+    state_id: user.state_id,
+    city_id: user.city_id,
+    location: user.location,
+    country_name: user.country_name ?? null,
+    state_name: user.state_name ?? null,
+    city_name: user.city_name ?? null,
     posts,
     comments: comments as Comment[],
     followed_posts: followedPosts as PostSummary[],
@@ -103,8 +167,9 @@ export async function getUserWithDetails({ email, providerId }: { email?: string
   };
 }
 
+
+
 // 📋 Get all approved users (for public listing)
-// ✅ NEW: Get paginated users (for public listing)
 export async function getAllUsers(limit: number, offset: number): Promise<SimpleUser[]> {
   const [rows] = await db.query<RowDataPacket[]>(
     `SELECT id, first_name, last_name, slug, avatar_url, created_at
@@ -117,7 +182,6 @@ export async function getAllUsers(limit: number, offset: number): Promise<Simple
   return rows as SimpleUser[];
 }
 
-// ✅ NEW: Get total user count (for pagination)
 export async function getUsersCount(): Promise<number> {
   const [rows] = await db.query<RowDataPacket[]>(
     `SELECT COUNT(*) AS total FROM users WHERE status = 'approved'`
@@ -126,19 +190,30 @@ export async function getUsersCount(): Promise<number> {
 }
 
 // 👤 Get user by slug (e.g. /users/john-doe) + viewerId to check follow status
-export async function getUserBySlug(slug: string, viewerId?: number): Promise<(FullUserData & { is_followed: boolean }) | null> {
+export async function getUserBySlug(
+  slug: string,
+  viewerId?: number
+): Promise<(FullUserData & { is_followed: boolean }) | null> {
   const [firstName, lastName] = slug.trim().split('-');
 
   const [users] = await db.query<RowDataPacket[]>(
-    `SELECT * FROM users
-     WHERE first_name = ? AND last_name = ? AND status = 'approved'
+    `SELECT 
+       u.*, 
+       co.name AS country_name,
+       s.name AS state_name,
+       ci.name AS city_name
+     FROM users u
+     LEFT JOIN countries co ON u.country_id = co.id
+     LEFT JOIN states s ON u.state_id = s.id
+     LEFT JOIN cities ci ON u.city_id = ci.id
+     WHERE u.first_name = ? AND u.last_name = ? AND u.status = 'approved'
      LIMIT 1`,
     [firstName, lastName]
   );
+
   const user = users[0];
   if (!user) return null;
 
-  // ✅ Check if viewer follows this user
   let is_followed = false;
   if (viewerId) {
     const [rows] = await db.query<RowDataPacket[]>(
@@ -151,7 +226,6 @@ export async function getUserBySlug(slug: string, viewerId?: number): Promise<(F
 
   const posts = await getPostsByUserId(user.id);
 
-  // 🗨️ Fetch comments with post title and slug for context
   const [comments] = await db.query<RowDataPacket[]>(
     `SELECT 
        c.id, c.message, c.created_at, c.post_id, c.parent_id,
@@ -202,6 +276,13 @@ export async function getUserBySlug(slug: string, viewerId?: number): Promise<(F
     slug: user.slug,
     avatar_alt: user.avatar_alt,
     avatar_title: user.avatar_title,
+    country_id: user.country_id,
+    state_id: user.state_id,
+    city_id: user.city_id,
+    location: user.location,
+    country_name: user.country_name ?? null,
+    state_name: user.state_name ?? null,
+    city_name: user.city_name ?? null,
     posts,
     comments: comments as Comment[],
     followed_posts: followedPosts as PostSummary[],
@@ -210,7 +291,6 @@ export async function getUserBySlug(slug: string, viewerId?: number): Promise<(F
   };
 }
 
-// ⬇️⬇️⬇️ NEW PAGINATED HELPERS ⬇️⬇️⬇️
 
 // 🧩 Paginated user posts
 export async function getUserPostsPaginated(userId: number, limit: number, offset: number): Promise<{ data: PostSummary[]; totalCount: number }> {
@@ -312,9 +392,6 @@ export async function getFollowersPaginated(userId: number, limit: number, offse
   };
 }
 
-
-
-
 // 🧩 NEW: get full user data with paginated comments
 export async function getUserWithDetailsPaginated({
   email,
@@ -331,10 +408,36 @@ export async function getUserWithDetailsPaginated({
   let value: string | undefined;
 
   if (providerId) {
-    query = 'SELECT * FROM users WHERE provider_account_id = ? LIMIT 1';
+   query = `
+  SELECT 
+    users.*, 
+    countries.name AS country_name,
+    states.name AS state_name,
+    cities.name AS city_name
+  FROM users
+  LEFT JOIN countries ON users.country_id = countries.id
+  LEFT JOIN states ON users.state_id = states.id
+  LEFT JOIN cities ON users.city_id = cities.id
+  WHERE users.provider_account_id = ?
+  LIMIT 1
+`;
+
     value = providerId;
   } else if (email) {
-    query = 'SELECT * FROM users WHERE email = ? LIMIT 1';
+    query = 'SELECT * FROM users WHERE email = ? LIMIT 1';query = `
+  SELECT 
+    users.*, 
+    countries.name AS country_name,
+    states.name AS state_name,
+    cities.name AS city_name
+  FROM users
+  LEFT JOIN countries ON users.country_id = countries.id
+  LEFT JOIN states ON users.state_id = states.id
+  LEFT JOIN cities ON users.city_id = cities.id
+  WHERE users.email = ?
+  LIMIT 1
+`;
+
     value = email;
   }
   if (!query || !value) return null;
@@ -344,11 +447,8 @@ export async function getUserWithDetailsPaginated({
   if (!user) return null;
 
   const posts = await getPostsByUserId(user.id);
-
-  // ⭐ Paginated comments with post + user info
   const { data: commentRows, totalCount } = await getUserCommentsPaginated(user.id, limit, offset);
 
-  // 🧩 Build nested comment tree
   const commentMap = new Map<number, Comment & { replies: Comment[] }>();
   const rootComments: (Comment & { replies: Comment[] })[] = [];
 
@@ -404,8 +504,16 @@ export async function getUserWithDetailsPaginated({
     slug: user.slug,
     avatar_alt: user.avatar_alt,
     avatar_title: user.avatar_title,
+    country_id: user.country_id,
+    state_id: user.state_id,
+    city_id: user.city_id,
+    location: user.location,
     posts,
-    comments: rootComments, // ⬅️ Nested structure
+    country_name: user.country_name ?? null,
+state_name: user.state_name ?? null,
+city_name: user.city_name ?? null,
+
+    comments: rootComments,
     followed_posts: followedPosts as PostSummary[],
     followers: followers as SimpleUser[],
     totalComments: totalCount,

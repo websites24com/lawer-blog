@@ -1,9 +1,15 @@
-// app/api/user/route.ts
+// ✅ Route for USER Page
+
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserWithDetailsPaginated } from '@/app/lib/users'; // <-- NEW version of query function
+import { getUserWithDetailsPaginated } from '@/app/lib/users';
+import { requireApiAuth } from '@/app/lib/auth/requireApiAuth';
 
 export async function GET(req: NextRequest) {
   try {
+    // ✅ Require ADMIN or MODERATOR
+    await requireApiAuth({ roles: ['USER', 'ADMIN', 'MODERATOR'] });
+
+    // ✅ Parse query parameters
     const { searchParams } = req.nextUrl;
     const email = searchParams.get('email') || undefined;
     const providerId = searchParams.get('providerId') || undefined;
@@ -12,6 +18,7 @@ export async function GET(req: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '5', 10);
     const offset = (commentPage - 1) * limit;
 
+    // 🚫 Require at least email or providerId
     if (!email && !providerId) {
       return NextResponse.json(
         { error: 'Missing query parameter: email or providerId required' },
@@ -19,10 +26,10 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    // ✅ Fetch user data
     const userData = await getUserWithDetailsPaginated({ email, providerId, offset, limit });
 
     if (!userData) {
-      console.warn('⚠️ No user found for given query');
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
@@ -32,12 +39,12 @@ export async function GET(req: NextRequest) {
       comments: userData.comments || [],
       followed_posts: userData.followed_posts || [],
       followers: userData.followers || [],
-      totalComments: userData.totalComments || 0, // <== IMPORTANT
+      totalComments: userData.totalComments || 0,
     };
 
     return NextResponse.json(payload);
   } catch (err) {
-    console.error('❌ Failed to load user data:', err);
+    console.error('❌ GET /api/user/details error:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

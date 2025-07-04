@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useTransition, useEffect } from 'react';
+
 import { useRouter } from 'next/navigation';
 import ActionButton from '@/app/components/global/ActionButton';
 import ImageWithFallback from '@/app/components/global/ImageWithFallback';
@@ -35,6 +36,8 @@ export default function CreatePostForm({ categories }: CreatePostFormProps) {
   const [titleCount, setTitleCount] = useState(0);
   const [contentCount, setContentCount] = useState(0);
   const [isPreviewReady, setIsPreviewReady] = useState(false);
+
+  
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
