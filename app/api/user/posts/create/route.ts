@@ -1,8 +1,7 @@
 'use server';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { RequireAuth } from '@/app/lib/auth/requireAuth';
-import { ROLES } from '@/app/lib/auth/roles';
+import { requireApiAuth } from '@/app/lib/auth/requireApiAuth';
 import { db } from '@/app/lib/db';
 import { v4 as uuid } from 'uuid';
 import path from 'path';
@@ -30,16 +29,18 @@ function extractHashtags(text: string): string[] {
 
 export async function POST(req: NextRequest) {
   try {
-    // ✅ Step 1: Authenticate user (user must be logged in with valid role)
-    const { user } = await RequireAuth({
-      roles: [ROLES.USER, ROLES.MODERATOR, ROLES.ADMIN],
-    });
+     // ✅ Authenticate the user and restrict to allowed roles
+    const { user } = await requireApiAuth({ roles: ['USER', 'MODERATOR', 'ADMIN'] });
 
     // ✅ Step 2: Parse form data
     const formData = await req.formData();
     const title = formData.get('title')?.toString().trim() || '';
     const excerpt = formData.get('excerpt')?.toString().trim() || '';
     const content = formData.get('content')?.toString().trim() || '';
+    const country_id = Number(formData.get('country_id')) || null;
+    const state_id = Number(formData.get('state_id')) || null;
+    const city_id = Number(formData.get('city_id')) || null;
+
     const category_id = Number(formData.get('category_id')) || 1;
     const featured_photo_url = formData.get('featured_photo_url')?.toString();
     const rawTags = formData.get('tags')?.toString() || '';
@@ -63,9 +64,9 @@ export async function POST(req: NextRequest) {
     const [result] = await db.execute(
       `INSERT INTO posts (
         title, excerpt, content, category_id, user_id,
-        featured_photo, status, slug, location
+        featured_photo, status, slug, location, country_id, state_id, city_id
       )
-      VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ST_GeomFromText(?))`,
+      VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ST_GeomFromText(?), ?, ?, ?)`,
       [
         title,
         excerpt,
@@ -75,6 +76,9 @@ export async function POST(req: NextRequest) {
         photoPath,
         slug,
         `POINT(${lon} ${lat})`, // POINT(X Y) = POINT(lon lat)
+        country_id,
+        state_id,
+        city_id,
       ]
     );
 

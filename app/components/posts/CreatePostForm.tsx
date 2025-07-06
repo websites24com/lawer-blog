@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useRef, useTransition, useEffect } from 'react';
-
 import { useRouter } from 'next/navigation';
 import ActionButton from '@/app/components/global/ActionButton';
 import ImageWithFallback from '@/app/components/global/ImageWithFallback';
@@ -16,10 +15,17 @@ interface CreatePostFormProps {
   categories: { id: number; name: string }[];
 }
 
+interface Country { id: number; name: string }
+interface State { id: number; name: string }
+interface City { id: number; name: string }
+
 export default function CreatePostForm({ categories }: CreatePostFormProps) {
   const [form, setForm] = useState({
     title: '',
     excerpt: '',
+    country_id: '',
+    state_id: '',
+    city_id: '',
     content: '',
     category_id: categories[0]?.id.toString() || '1',
     featured_photo: '/uploads/posts/default.jpg',
@@ -37,18 +43,71 @@ export default function CreatePostForm({ categories }: CreatePostFormProps) {
   const [contentCount, setContentCount] = useState(0);
   const [isPreviewReady, setIsPreviewReady] = useState(false);
 
+  const [countries, setCountries] = useState<Country[]>([]);
+  const [states, setStates] = useState<State[]>([]);
+  const [cities, setCities] = useState<City[]>([]);
+
+
+  async function fetchCountriesClient(): Promise<Country[]> {
+    const res = await fetch('/api/locations/countries');
+    const data = await res.json();
+    console.log('🌍 Loaded countries:', data);
+    return data;
+  }
+
+  async function fetchStatesClient(countryId: number): Promise<State[]> {
+    const res = await fetch(`/api/locations/states/${countryId}`);
+    const data = await res.json();
+    console.log(`🏙️ Loaded states for country ${countryId}:`, data);
+    return data;
+  }
+
+  async function fetchCitiesClient(stateId: number): Promise<City[]> {
+    const res = await fetch(`/api/locations/cities/${stateId}`);
+    const data = await res.json();
+    console.log(`🏘️ Loaded cities for state ${stateId}:`, data);
+    return data;
+  }
+
+useEffect(() => {
+  fetchCountriesClient().then(setCountries).catch(console.error);
+}, []);
+
+
+
   
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setForm(prev => {
-      const updated = { ...prev, [name]: value };
-      sendPreviewData(updated);
-      return updated;
-    });
-    if (name === 'excerpt') setExcerptCount(value.length);
-    if (name === 'title') setTitleCount(value.length);
-  };
+ const handleChange = async (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+  const { name, value } = e.target;
+  setForm(prev => {
+    const updated = { ...prev, [name]: value };
+    sendPreviewData(updated);
+    return updated;
+  });
+
+  if (name === 'country_id') {
+    const countryId = Number(value);
+    if (!isNaN(countryId)) {
+      const loadedStates = await fetchStatesClient(countryId);
+      setStates(loadedStates);
+      setCities([]);
+      setForm(prev => ({ ...prev, state_id: '', city_id: '' }));
+    }
+  }
+
+  if (name === 'state_id') {
+    const stateId = Number(value);
+    if (!isNaN(stateId)) {
+      const loadedCities = await fetchCitiesClient(stateId);
+      setCities(loadedCities);
+      setForm(prev => ({ ...prev, city_id: '' }));
+    }
+  }
+
+  if (name === 'excerpt') setExcerptCount(value.length);
+  if (name === 'title') setTitleCount(value.length);
+};
+
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -88,6 +147,10 @@ export default function CreatePostForm({ categories }: CreatePostFormProps) {
         formData.append('category_id', form.category_id);
         formData.append('featured_photo_url', form.featured_photo);
         formData.append('tags', form.tags || '');
+        formData.append('country_id', form.country_id);
+        formData.append('state_id', form.state_id);
+        formData.append('city_id', form.city_id);
+
 
         if (previewWindow && !previewWindow.closed) previewWindow.close();
 
@@ -200,6 +263,25 @@ export default function CreatePostForm({ categories }: CreatePostFormProps) {
       <small className="char-hint">
         Separate with spaces – max 10 – must begin with <strong>#</strong>
       </small>
+
+      <label>Country</label>
+<select name="country_id" value={form.country_id} onChange={handleChange} required>
+  <option value="">Select Country</option>
+  {countries.map(c => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
+</select>
+
+<label>State</label>
+<select name="state_id" value={form.state_id} onChange={handleChange} required>
+  <option value="">Select State</option>
+  {states.map(s => <option key={s.id} value={String(s.id)}>{s.name}</option>)}
+</select>
+
+<label>City</label>
+<select name="city_id" value={form.city_id} onChange={handleChange} required>
+  <option value="">Select City</option>
+  {cities.map(c => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
+</select>
+
 
       <label htmlFor="category_id">Category:</label>
       <select name="category_id" value={form.category_id} onChange={handleChange}>

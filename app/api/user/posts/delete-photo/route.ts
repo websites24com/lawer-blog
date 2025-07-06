@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { RequireAuth } from '@/app/lib/auth/requireAuth';
-import { ROLES } from '@/app/lib/auth/roles';
+import { requireApiAuth } from '@/app/lib/auth/requireApiAuth';
 import path from 'path';
 import fs from 'fs/promises';
 
@@ -8,9 +7,7 @@ import fs from 'fs/promises';
 export async function POST(req: NextRequest) {
   try {
     // ✅ Auth check with role restriction
-    const { user } = await RequireAuth({
-      roles: [ROLES.USER, ROLES.MODERATOR, ROLES.ADMIN],
-    });
+     await requireApiAuth({ roles: ['USER', 'MODERATOR', 'ADMIN'] });
 
     const { oldContent, newContent } = await req.json();
 

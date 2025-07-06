@@ -8,6 +8,7 @@ type Props = {
   src: string | null;
   fallbackSrc?: string;
   imageType?: 'post' | 'avatar';
+  title?: string;
   alt: string;
   className?: string;
   wrapperClassName?: string;

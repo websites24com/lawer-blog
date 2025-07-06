@@ -1,26 +1,30 @@
 import Link from 'next/link';
 import ImageWithFallback from '@/app/components/global/ImageWithFallback';
-import FancyDate from '@/app/components/global/date/FancyDate'; // ✅ import your FancyDate component
+import FancyDate from '@/app/components/global/date/FancyDate';
+import { Category } from '@/app/lib/definitions';
 
 export type AuthorInfoProps = {
-  user_id: number;
-  user_slug: string; // ✅ This is needed
+  user_slug: string;
   first_name: string;
   last_name: string;
-  avatar_url?: string;
+  avatar_url?: string | null;
   created_at: string | null;
-  category: string | null;
+  category?: Category | null;
+  country_name?: string | null;
+  state_name?: string | null;
+  city_name?: string | null;
 };
 
-
 export default function AuthorInfo({
-  user_id,
   user_slug,
   first_name,
   last_name,
   avatar_url,
   created_at,
   category,
+  country_name,
+  state_name,
+  city_name,
 }: AuthorInfoProps) {
   return (
     <div
@@ -31,7 +35,7 @@ export default function AuthorInfo({
         flexWrap: 'wrap',
       }}
     >
-      {/* Avatar */}
+      {/* ✅ Avatar */}
       <div
         style={{
           width: '32px',
@@ -49,10 +53,10 @@ export default function AuthorInfo({
         />
       </div>
 
-      {/* Written by */}
+      {/* ✅ Author name */}
       <span style={{ color: '#555', fontSize: '0.95rem' }}>Written by:</span>
       <Link
-        href={`/users/${user_slug}`} // ✅ Correct route using slug
+        href={`/users/${user_slug}`}
         style={{
           textDecoration: 'none',
           color: '#0070f3',
@@ -62,25 +66,62 @@ export default function AuthorInfo({
         {first_name} {last_name}
       </Link>
 
-      {/* on Date */}
+      {/* ✅ Date */}
       {created_at && (
         <span style={{ color: '#555', fontSize: '0.95rem' }}>
           on <FancyDate dateString={created_at} />
         </span>
       )}
 
-      {/* Category */}
+      {/* ✅ Category */}
       {category && (
         <span style={{ color: '#555', fontSize: '0.95rem' }}>
           • Category:{' '}
           <Link
-            href={`/blog?category=${encodeURIComponent(category)}`}
+            href={`/blog/category/${category.slug}`}
             style={{
               color: '#0070f3',
               textDecoration: 'none',
             }}
           >
-            {category}
+            {category.name}
+          </Link>
+        </span>
+      )}
+
+      {/* ✅ Location */}
+      {city_name && (
+        <span style={{ color: '#555', fontSize: '0.95rem' }}>
+          • City:{' '}
+          <Link
+            href={`/blog?city=${encodeURIComponent(city_name)}`}
+            style={{ color: '#0070f3', textDecoration: 'none' }}
+          >
+            {city_name}
+          </Link>
+        </span>
+      )}
+
+      {state_name && (
+        <span style={{ color: '#555', fontSize: '0.95rem' }}>
+          • State:{' '}
+          <Link
+            href={`/blog?state=${encodeURIComponent(state_name)}`}
+            style={{ color: '#0070f3', textDecoration: 'none' }}
+          >
+            {state_name}
+          </Link>
+        </span>
+      )}
+
+      {country_name && (
+        <span style={{ color: '#555', fontSize: '0.95rem' }}>
+          • Country:{' '}
+          <Link
+            href={`/blog?country=${encodeURIComponent(country_name)}`}
+            style={{ color: '#0070f3', textDecoration: 'none' }}
+          >
+            {country_name}
           </Link>
         </span>
       )}

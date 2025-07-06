@@ -70,6 +70,10 @@ export type PostSummary = {
   title: string;
   status: string;
   featured_photo: string | null;
+  country_name: string | null;
+  state_name: string | null;
+  city_name: string | null;
+
 };
 
 export type PaginationParams = {
@@ -91,26 +95,14 @@ export type Comment = {
   edited_at: string | null;
   post_slug: string;
   post_title: string | null;
-  first_name: string | null;
-  last_name: string | null;
-  avatar_url: string | null;
 };
 
-export type CommentWithUser = {
-  id: number;
-  post_id: number;
-  user_id: number;
-  first_name: string;
-  last_name: string;
-  avatar_url: string | null;
-  message: string;
-  parent_id: number | null;
-  status: 'pending' | 'approved' | 'declined';
-  created_at: string;
-  edited_by: number | null;
-  edited_at: string | null;
+
+export type CommentWithUser = Comment & {
+  user: SimpleUser;
   replies: CommentWithUser[];
 };
+
 
 
 
@@ -139,11 +131,24 @@ export type PostWithDetails = {
   country_id: number | null;
   state_id: number | null;
   city_id: number | null;
+  country_name: string | null;
+  state_name: string | null;
+  city_name: string | null;
   location: { lat: number; lon: number };
+
   user: SimpleUser;
-  category: Category;
+
+  category: {
+    id: number;
+    name: string;
+    slug: string; // ✅ required for post.category.slug
+  };
+
   followed_by_current_user: boolean;
   comments: CommentWithUser[];
+  tags: string[]; // ✅ required for post.tags.map
 };
+
+
 
 export type formRef = React.RefObject<HTMLFormElement>;

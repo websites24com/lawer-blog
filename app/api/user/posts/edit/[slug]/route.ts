@@ -1,91 +1,119 @@
 'use server';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireApiAuth } from '@/app/lib/auth/requireApiAuth';
 import { db } from '@/app/lib/db';
-import { savePostTags } from '@/app/lib/tags';
-import { RequireAuth } from '@/app/lib/auth/requireAuth';
-import { ROLES } from '@/app/lib/auth/roles';
 
-import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import fs from 'fs/promises';
-import sharp from 'sharp';
+import { savePostTags } from '@/app/lib/tags';
 
-const UPLOAD_DIR = path.join(process.cwd(), 'public/uploads/posts');
-const FALLBACK_PHOTO = '/uploads/posts/default.jpg';
+// ✅ Extract image paths used in post content
+function extractImageUrls(html: string): Set<string> {
+  const regex = /<img[^>]+src="([^">]+)"/g;
+  const urls = new Set<string>();
+  let match;
+  while ((match = regex.exec(html))) {
+    const src = match[1];
+    if (src.startsWith('/uploads/posts/') && !src.includes('default.jpg')) {
+      urls.add(src);
+    }
+  }
+  return urls;
+}
 
-// 🧠 Helper to extract clean hashtag list from raw string
-function extractHashtags(input: string): string[] {
-  return input
-    .split(/[\s,]+/)
-    .map((tag) => tag.trim().replace(/^#/, '').toLowerCase())
-    .filter(Boolean);
+// ✅ Extract hashtags like #law #rights from string
+function extractHashtags(text: string): string[] {
+  return Array.from(new Set((text.match(/#\w+/g) || []).map(tag => tag.trim())));
 }
 
 export async function POST(req: NextRequest, { params }: { params: { slug: string } }) {
   try {
-    // ✅ Centralized auth with roles
-    const { user } = await RequireAuth({
-      roles: [ROLES.USER, ROLES.MODERATOR, ROLES.ADMIN],
-    });
+    // ✅ Authenticate the user and restrict to allowed roles
+    const { user } = await requireApiAuth({ roles: ['USER', 'MODERATOR', 'ADMIN'] });
 
+    // ✅ Step 2: Parse form data
     const formData = await req.formData();
+    const title = formData.get('title')?.toString().trim() || '';
+    const excerpt = formData.get('excerpt')?.toString().trim() || '';
+    const content = formData.get('content')?.toString().trim() || '';
+    const country_id = Number(formData.get('country_id')) || null;
+    const state_id = Number(formData.get('state_id')) || null;
+    const city_id = Number(formData.get('city_id')) || null;
 
-    const title = formData.get('title')?.toString() || '';
-    const excerpt = formData.get('excerpt')?.toString() || '';
-    const content = formData.get('content')?.toString() || '';
-    const categoryId = Number(formData.get('category_id'));
-    const tagsString = formData.get('tags')?.toString() || '';
-    const oldPhoto = formData.get('old_photo')?.toString() || FALLBACK_PHOTO;
-    const featuredPhotoFile = formData.get('featured_photo') as File | null;
+    const category_id = Number(formData.get('category_id')) || 1;
+    const featured_photo_url = formData.get('featured_photo_url')?.toString();
+    const rawTags = formData.get('tags')?.toString() || '';
 
-    const hashtags = extractHashtags(tagsString);
+    const lat = parseFloat(formData.get('lat')?.toString() || '') || 19.4326;
+    const lon = parseFloat(formData.get('lon')?.toString() || '') || -99.1332;
 
-    // ✅ Get post ID and owner
+    // ✅ Step 3: Fetch post ID by slug
     const [rows] = await db.query('SELECT id, user_id FROM posts WHERE slug = ?', [params.slug]);
     const post = (rows as any[])[0];
     if (!post) return NextResponse.json({ error: 'Post not found' }, { status: 404 });
 
     const isOwner = post.user_id === user.id;
-    const isPrivileged = [ROLES.ADMIN, ROLES.MODERATOR].includes(user.role);
-
+    const isPrivileged = ['MODERATOR', 'ADMIN'].includes(user.role);
     if (!isOwner && !isPrivileged) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    let featuredPhotoUrl = formData.get('featured_photo_url')?.toString() || FALLBACK_PHOTO;
+    // ✅ Step 4: Process featured photo
+    let photoPath = '/uploads/posts/default.jpg';
+    if (featured_photo_url && featured_photo_url.startsWith('/uploads/posts/')) {
+      photoPath = featured_photo_url;
+    }
 
-    // ✅ Save new uploaded photo (if any)
-    if (featuredPhotoFile && featuredPhotoFile.size > 0) {
-      const ext = path.extname(featuredPhotoFile.name) || '.webp';
-      const fileName = `${uuidv4()}${ext}`;
-      const buffer = Buffer.from(await featuredPhotoFile.arrayBuffer());
-      const fullPath = path.join(UPLOAD_DIR, fileName);
+    // ✅ Step 5: Update post
+    await db.query(
+      `UPDATE posts SET
+        title = ?, excerpt = ?, content = ?, category_id = ?, featured_photo = ?,
+        location = ST_GeomFromText(?), country_id = ?, state_id = ?, city_id = ?
+      WHERE id = ?`,
+      [
+        title,
+        excerpt,
+        content,
+        category_id,
+        photoPath,
+        `POINT(${lon} ${lat})`,
+        country_id,
+        state_id,
+        city_id,
+        post.id,
+      ]
+    );
 
-      await sharp(buffer).resize(1280).toFile(fullPath);
-      featuredPhotoUrl = `/uploads/posts/${fileName}`;
+    // ✅ Step 6: Save tags
+    const tags = extractHashtags(rawTags);
+    if (tags.length > 0) {
+      await savePostTags(post.id, tags);
+    }
 
-      // ✅ Delete old photo if needed
-      if (oldPhoto && oldPhoto !== FALLBACK_PHOTO) {
-        const oldPath = path.join(process.cwd(), 'public', oldPhoto);
+    // ✅ Step 7: Cleanup unused uploaded images
+    const usedImages = extractImageUrls(content);
+    if (!usedImages.has(photoPath)) {
+      usedImages.add(photoPath);
+    }
+
+    const uploadDir = path.join(process.cwd(), 'public/uploads/posts');
+    const files = await fs.readdir(uploadDir);
+
+    for (const file of files) {
+      const fileUrl = `/uploads/posts/${file}`;
+      if (!usedImages.has(fileUrl) && !fileUrl.includes('default.jpg')) {
         try {
-          await fs.unlink(oldPath);
-        } catch {}
+          await fs.unlink(path.join(uploadDir, file));
+        } catch {
+          // Ignore errors if already deleted
+        }
       }
     }
 
-    // ✅ Update post
-    await db.query(
-      `UPDATE posts SET title = ?, excerpt = ?, content = ?, category_id = ?, featured_photo = ? WHERE id = ?`,
-      [title, excerpt, content, categoryId, featuredPhotoUrl, post.id]
-    );
-
-    // ✅ Save tags
-    await savePostTags(post.id, hashtags);
-
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error('POST /edit/:slug error', err);
-    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+    console.error('❌ Edit Post Error:', err);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

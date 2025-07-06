@@ -127,20 +127,36 @@ export async function getAllPosts(userId: number): Promise<PostSummary[]> {
 }
 
 // ✅ Get a single post by slug (for view/edit), includes comments and tags
-export async function getPostBySlug(slug: string, viewerId: number): Promise<PostWithDetails | null> {
-  // 1. Load main post info
-  const [rows] = await db.query(
+
+
+export async function getPostBySlug(
+  slug: string,
+  viewerId: number
+): Promise<PostWithDetails | null> {
+  // ✅ 1. Load post data with proper category columns
+  const [rows] = await db.query<any[]>(
     `
     SELECT 
       p.*, 
-      c.name AS category,
-      u.first_name, u.last_name, u.slug AS user_slug, u.avatar_url,
+      c.id AS category_id,
+      c.name AS category_name,
+      c.slug AS category_slug,
+      cn.name AS country_name,
+      st.name AS state_name,
+      ci.name AS city_name,
+      u.first_name,
+      u.last_name,
+      u.slug AS user_slug,
+      u.avatar_url,
       EXISTS (
         SELECT 1 FROM followed_posts fp
         WHERE fp.post_id = p.id AND fp.user_id = ?
       ) AS followed_by_current_user
     FROM posts p
     LEFT JOIN categories c ON p.category_id = c.id
+    LEFT JOIN countries cn ON p.country_id = cn.id
+    LEFT JOIN states st ON p.state_id = st.id
+    LEFT JOIN cities ci ON p.city_id = ci.id
     LEFT JOIN users u ON p.user_id = u.id
     WHERE p.slug = ?
     LIMIT 1
@@ -148,26 +164,40 @@ export async function getPostBySlug(slug: string, viewerId: number): Promise<Pos
     [viewerId, slug]
   );
 
-  const post = (rows as any[])[0];
+  const post = rows[0];
   if (!post) return null;
 
-  console.log('✅ Loaded post ID:', post.id);
-
-  // Prepare user object
+  // ✅ Format user object
   post.user = {
     first_name: post.first_name,
     last_name: post.last_name,
     slug: post.user_slug,
     avatar_url: post.avatar_url,
   };
-
   delete post.first_name;
   delete post.last_name;
   delete post.user_slug;
   delete post.avatar_url;
 
-  // 2. Load tags
-  const [tagRows] = await db.query(
+  // ✅ Format category object
+  post.category = post.category_id
+    ? {
+        id: post.category_id,
+        name: post.category_name,
+        slug: post.category_slug,
+      }
+    : null;
+  delete post.category_id;
+  delete post.category_name;
+  delete post.category_slug;
+
+  // ✅ Format location
+  post.country_name = post.country_name || null;
+  post.state_name = post.state_name || null;
+  post.city_name = post.city_name || null;
+
+  // ✅ 2. Load tags
+  const [tagRows] = await db.query<any[]>(
     `
     SELECT t.name
     FROM tags t
@@ -176,10 +206,9 @@ export async function getPostBySlug(slug: string, viewerId: number): Promise<Pos
     `,
     [post.id]
   );
+  post.tags = tagRows.map((t) => t.name);
 
-  post.tags = tagRows.map((t: any) => t.name);
-
-  // 3. Load comments
+  // ✅ 3. Load comments with user info
   const [allComments] = await db.query<any[]>(
     `
     SELECT 
@@ -210,14 +239,14 @@ export async function getPostBySlug(slug: string, viewerId: number): Promise<Pos
     [post.id]
   );
 
-  const visibleComments = allComments.filter(comment => {
+  const visibleComments = allComments.filter((comment) => {
     return comment.status === 'approved' || comment.user_id === viewerId;
   });
 
   const commentMap: { [id: number]: any } = {};
   const rootComments: any[] = [];
 
-  visibleComments.forEach((comment) => {
+  for (const comment of visibleComments) {
     comment.user = {
       id: comment.uid,
       first_name: comment.first_name,
@@ -248,18 +277,22 @@ export async function getPostBySlug(slug: string, viewerId: number): Promise<Pos
     if (!comment.parent_id) {
       rootComments.push(comment);
     }
-  });
+  }
 
-  visibleComments.forEach(comment => {
+  for (const comment of visibleComments) {
     if (comment.parent_id && commentMap[comment.parent_id]) {
       commentMap[comment.parent_id].replies.push(comment);
     }
-  });
+  }
 
   post.comments = rootComments;
 
   return post as PostWithDetails;
 }
+
+
+
+
 
 // ✅ Get all categories
 export async function getAllCategories(): Promise<{ id: number; name: string }[]> {
@@ -352,6 +385,105 @@ export async function getPostsByTag(
       slug: row.user_slug,
     },
   }));
+
+  return { posts, totalCount };
+}
+
+
+// ✅ Get all approved posts by category slug (for /blog/category/[slug])
+
+
+// ✅ Get all approved posts by category slug (for /blog/category/[slug])
+// ✅ Get all approved posts by category slug (for /blog/category/[slug])
+export async function getPostsByCategorySlug(
+  slug: string,
+  viewerId: number = 0,
+  page: number = 1,
+  pageSize: number = 10
+): Promise<{ posts: PostSummary[]; totalCount: number }> {
+  const offset = (page - 1) * pageSize;
+  const limit = pageSize;
+
+  const [rows] = await db.query<any[]>(
+    `
+    SELECT 
+      posts.id,
+      posts.slug,
+      posts.title,
+      posts.excerpt,
+      posts.created_at,
+      posts.featured_photo,
+      categories.name AS category,
+      users.first_name,
+      users.last_name,
+      users.avatar_url,
+      users.slug AS user_slug,
+      GROUP_CONCAT(DISTINCT t.name ORDER BY t.name SEPARATOR ',') AS tags,
+      ${
+        viewerId
+          ? `EXISTS (
+               SELECT 1 FROM followed_posts 
+               WHERE followed_posts.user_id = ${db.escape(viewerId)} AND followed_posts.post_id = posts.id
+             ) AS followed_by_current_user`
+          : `FALSE AS followed_by_current_user`
+      }
+    FROM posts
+    LEFT JOIN categories ON posts.category_id = categories.id
+    LEFT JOIN users ON posts.user_id = users.id
+    LEFT JOIN post_tags pt ON posts.id = pt.post_id
+    LEFT JOIN tags t ON pt.tag_id = t.id
+    WHERE posts.status = 'approved'
+      AND LOWER(categories.slug) = LOWER(?)
+    GROUP BY posts.id
+    ORDER BY posts.created_at DESC
+    LIMIT ? OFFSET ?
+    `,
+    [slug, limit, offset]
+  );
+
+  const posts: PostSummary[] = rows.map((row) => {
+    let createdAt: string;
+
+    // ✅ ensure date is ISO string
+    try {
+      const d = new Date(row.created_at);
+      createdAt = isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+    } catch {
+      createdAt = new Date().toISOString();
+    }
+
+    return {
+      id: row.id,
+      slug: row.slug,
+      title: row.title,
+      excerpt: row.excerpt,
+      created_at: createdAt,
+      featured_photo: row.featured_photo,
+      category: row.category,
+      followed_by_current_user: !!row.followed_by_current_user,
+      tags: row.tags ? row.tags.split(',') : [],
+      status: 'approved',
+      user: {
+        first_name: row.first_name,
+        last_name: row.last_name,
+        avatar_url: row.avatar_url,
+        slug: row.user_slug,
+      },
+    };
+  });
+
+  const [countRows] = await db.query<any[]>(
+    `
+    SELECT COUNT(DISTINCT posts.id) AS count
+    FROM posts
+    LEFT JOIN categories ON posts.category_id = categories.id
+    WHERE posts.status = 'approved'
+      AND LOWER(categories.slug) = LOWER(?)
+    `,
+    [slug]
+  );
+
+  const totalCount = countRows[0].count;
 
   return { posts, totalCount };
 }

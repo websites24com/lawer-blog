@@ -1,11 +1,11 @@
 import { db } from '@/app/lib/db';
 import CreatePostForm from '@/app/components/posts/CreatePostForm';
-import { RequireAuth } from '@/app/lib/auth/requireAuth';
+import { requireAuth } from '@/app/lib/auth/requireAuth';
 
 type Category = { id: number; name: string };
 
 export default async function NewPostPage() {
-  await RequireAuth({
+  await requireAuth({
     roles: ['USER', 'MODERATOR', 'ADMIN'],
   });
 

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
-
+import { getUserFromSession } from '@/app/lib/auth/getUserFromSession';
 import ActionButton from '@/app/components/global/ActionButton';
 import ImageWithFallback from '@/app/components/global/ImageWithFallback';
 import PhoneNumberInput from '@/app/components/global/PhoneNumberInput';
@@ -73,26 +73,20 @@ export default function EditUserForm({ userId }: { userId: number }) {
     return data;
   }
 
- useEffect(() => {
+useEffect(() => {
   async function loadUserData() {
     if (status !== 'authenticated' || !session?.user) return;
 
-    const url = session.user.email
-      ? `/api/user?email=${session.user.email}`
-      : session.user.provider_account_id
-      ? `/api/user?providerId=${session.user.provider_account_id}`
-      : null;
-
-    if (!url) return;
-
     try {
-      const [res, countriesData] = await Promise.all([
-        fetch(url),
+      const [user, countriesData] = await Promise.all([
+        getUserFromSession(session),
         fetchCountriesClient(),
       ]);
 
-      const user = await res.json();
-      console.log('👤 Loaded user:', user);
+      if (!user) {
+        console.error('❌ No user returned from session');
+        return;
+      }
 
       const updatedForm = {
         first_name: user.first_name ?? '',
@@ -117,13 +111,11 @@ export default function EditUserForm({ userId }: { userId: number }) {
 
       if (user.country_id != null) {
         const loadedStates = await fetchStatesClient(user.country_id);
-        console.log('✅ Loaded states:', loadedStates);
         setStates(loadedStates);
       }
 
       if (user.state_id != null) {
         const loadedCities = await fetchCitiesClient(user.state_id);
-        console.log('✅ Loaded cities:', loadedCities);
         setCities(loadedCities);
       }
 
@@ -135,7 +127,8 @@ export default function EditUserForm({ userId }: { userId: number }) {
   }
 
   loadUserData();
-}, [status, session?.user]);
+}, [status, session]);
+
 
 
   useEffect(() => {

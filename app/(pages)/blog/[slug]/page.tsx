@@ -47,21 +47,24 @@ export default async function BlogPostPage({ params }: PageProps) {
     return <div><h1>404 - Post Not Found</h1></div>;
   }
 
-  const commentCount = post.comments?.length || 0;
+  
 
   return (
     <main style={{ padding: '2rem', maxWidth: '900px', margin: '0 auto' }}>
       <h1>{post.title}</h1>
 
-      <AuthorInfo
-        user_id={post.user_id}
-        user_slug={post.user.slug}
-        first_name={post.user.first_name}
-        last_name={post.user.last_name}
-        avatar_url={post.user.avatar_url}
-        created_at={post.created_at}
-        category={post.category}
-      />
+     <AuthorInfo
+  user_slug={post.user.slug}
+  first_name={post.user.first_name}
+  last_name={post.user.last_name}
+  avatar_url={post.user.avatar_url}
+  created_at={post.created_at}
+  category={post.category}
+  country_name={post.country_name}
+  state_name={post.state_name}
+  city_name={post.city_name}
+/>
+
 
       <FollowButton
         postId={post.id}

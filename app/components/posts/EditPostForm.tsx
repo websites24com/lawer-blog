@@ -9,7 +9,7 @@ import ImageWithFallback from '@/app/components/global/ImageWithFallback';
 import RichTextEditor from '@/app/components/global/RichTextEditor';
 import ImageCropModal from '@/app/components/posts/images/ImageCropModal';
 import ActionButton from '@/app/components/global/ActionButton';
-import TagInput from '@/app/components/posts/TagInput'; // ✅ Same as CreatePostForm
+import TagInput from '@/app/components/posts/TagInput';
 
 import type { PostWithDetails, Category } from '@/app/lib/definitions';
 
@@ -19,6 +19,10 @@ type Props = {
   post: PostWithDetails;
   categories: Category[];
 };
+
+interface Country { id: number; name: string }
+interface State { id: number; name: string }
+interface City { id: number; name: string }
 
 export default function EditPostForm({ post, categories }: Props) {
   const router = useRouter();
@@ -32,6 +36,9 @@ export default function EditPostForm({ post, categories }: Props) {
     category_id: post.category_id?.toString() || '',
     featured_photo: post.featured_photo || '/uploads/posts/default.jpg',
     tags: post.tags?.map((t) => `#${t}`).join(' ') || '',
+    country_id: post.country_id?.toString() || '',
+    state_id: post.state_id?.toString() || '',
+    city_id: post.city_id?.toString() || '',
   });
 
   const [photoFile, setPhotoFile] = useState<File | null>(null);
@@ -41,7 +48,114 @@ export default function EditPostForm({ post, categories }: Props) {
   const [contentCount, setContentCount] = useState(post.content.length);
   const [isPreviewReady, setIsPreviewReady] = useState(false);
 
-  // Send live preview updates
+  const [countries, setCountries] = useState<Country[]>([]);
+  const [states, setStates] = useState<State[]>([]);
+  const [cities, setCities] = useState<City[]>([]);
+
+  // 🌍 Load location data
+  async function fetchCountriesClient(): Promise<Country[]> {
+    const res = await fetch('/api/locations/countries');
+    const data = await res.json();
+    return data;
+  }
+
+  async function fetchStatesClient(countryId: number): Promise<State[]> {
+    const res = await fetch(`/api/locations/states/${countryId}`);
+    const data = await res.json();
+    return data;
+  }
+
+  async function fetchCitiesClient(stateId: number): Promise<City[]> {
+    const res = await fetch(`/api/locations/cities/${stateId}`);
+    const data = await res.json();
+    return data;
+  }
+
+  useEffect(() => {
+    fetchCountriesClient().then(setCountries).catch(console.error);
+
+    if (form.country_id) {
+      fetchStatesClient(Number(form.country_id)).then(setStates);
+    }
+    if (form.state_id) {
+      fetchCitiesClient(Number(form.state_id)).then(setCities);
+    }
+  }, []);
+
+  const handleChange = async (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setForm(prev => {
+      const updated = { ...prev, [name]: value };
+      sendPreviewData(updated);
+      return updated;
+    });
+
+    if (name === 'country_id') {
+      const countryId = Number(value);
+      if (!isNaN(countryId)) {
+        const loadedStates = await fetchStatesClient(countryId);
+        setStates(loadedStates);
+        setCities([]);
+        setForm(prev => ({ ...prev, state_id: '', city_id: '' }));
+      }
+    }
+
+    if (name === 'state_id') {
+      const stateId = Number(value);
+      if (!isNaN(stateId)) {
+        const loadedCities = await fetchCitiesClient(stateId);
+        setCities(loadedCities);
+        setForm(prev => ({ ...prev, city_id: '' }));
+      }
+    }
+
+    if (name === 'title') setTitleCount(value.length);
+    if (name === 'excerpt') setExcerptCount(value.length);
+  };
+
+  const handleContentChange = (value: string) => {
+    setForm(prev => {
+      const updated = { ...prev, content: value };
+      sendPreviewData(updated);
+      return updated;
+    });
+    setContentCount(value.length);
+  };
+
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setPhotoFile(e.target.files[0]);
+      setShowCropper(true);
+    }
+  };
+
+  const handleDeletePhoto = async () => {
+    if (form.featured_photo.includes('/default.jpg')) return;
+
+    try {
+      const res = await fetch('/api/user/posts/delete-photo', {
+        method: 'POST',
+        body: JSON.stringify({ photoPath: form.featured_photo }),
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (res.ok) {
+        toast.success('Photo deleted');
+        setForm(prev => {
+          const updated = { ...prev, featured_photo: '/uploads/posts/default.jpg' };
+          sendPreviewData(updated);
+          return updated;
+        });
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      } else {
+        toast.error('Delete failed');
+      }
+    } catch (err) {
+      console.error('Update failed:', err);
+      toast.error('Server error');
+    }
+  };
+
   const sendPreviewData = (customForm?: typeof form) => {
     if (previewWindow && !previewWindow.closed) {
       previewWindow.postMessage(
@@ -90,64 +204,6 @@ export default function EditPostForm({ post, categories }: Props) {
     if (isPreviewReady) sendPreviewData();
   }, [form, isPreviewReady]);
 
-  // Handle field updates
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
-  ) => {
-    const { name, value } = e.target;
-    setForm((prev) => {
-      const updated = { ...prev, [name]: value };
-      sendPreviewData(updated);
-      return updated;
-    });
-    if (name === 'title') setTitleCount(value.length);
-    if (name === 'excerpt') setExcerptCount(value.length);
-  };
-
-  const handleContentChange = (value: string) => {
-    setForm((prev) => {
-      const updated = { ...prev, content: value };
-      sendPreviewData(updated);
-      return updated;
-    });
-    setContentCount(value.length);
-  };
-
-  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setPhotoFile(e.target.files[0]);
-      setShowCropper(true);
-    }
-  };
-
-  const handleDeletePhoto = async () => {
-    if (form.featured_photo.includes('/default.jpg')) return;
-
-    try {
-      const res = await fetch('/api/user/posts/delete-photo', {
-        method: 'POST',
-        body: JSON.stringify({ photoPath: form.featured_photo }),
-        headers: { 'Content-Type': 'application/json' },
-      });
-
-      if (res.ok) {
-        toast.success('Photo deleted');
-        setForm((prev) => {
-          const updated = { ...prev, featured_photo: '/uploads/posts/default.jpg' };
-          sendPreviewData(updated);
-          return updated;
-        });
-        if (fileInputRef.current) fileInputRef.current.value = '';
-      } else {
-        toast.error('Delete failed');
-      }
-    } catch (err) {
-      console.error('Update failed:', err);
-      toast.error('Server error');
-    }
-  };
-
-  // Final submit
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -161,6 +217,10 @@ export default function EditPostForm({ post, categories }: Props) {
         formData.append('featured_photo_url', form.featured_photo);
         formData.append('old_photo', post.featured_photo || '/uploads/posts/default.jpg');
         formData.append('tags', form.tags || '');
+        formData.append('country_id', form.country_id);
+        formData.append('state_id', form.state_id);
+        formData.append('city_id', form.city_id);
+
         if (photoFile) {
           formData.append('featured_photo', photoFile);
         }
@@ -217,7 +277,7 @@ export default function EditPostForm({ post, categories }: Props) {
       <TagInput
         value={form.tags}
         onChange={(tagsString) => {
-          setForm((prev) => {
+          setForm(prev => {
             const updated = { ...prev, tags: tagsString };
             sendPreviewData(updated);
             return updated;
@@ -228,12 +288,28 @@ export default function EditPostForm({ post, categories }: Props) {
         Separate with spaces – max 10 – must begin with <strong>#</strong>
       </small>
 
+      <label>Country</label>
+      <select name="country_id" value={form.country_id} onChange={handleChange} required>
+        <option value="">Select Country</option>
+        {countries.map(c => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
+      </select>
+
+      <label>State</label>
+      <select name="state_id" value={form.state_id} onChange={handleChange} required>
+        <option value="">Select State</option>
+        {states.map(s => <option key={s.id} value={String(s.id)}>{s.name}</option>)}
+      </select>
+
+      <label>City</label>
+      <select name="city_id" value={form.city_id} onChange={handleChange} required>
+        <option value="">Select City</option>
+        {cities.map(c => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
+      </select>
+
       <label htmlFor="category_id">Category:</label>
       <select name="category_id" value={form.category_id} onChange={handleChange}>
         {categories.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.name}
-          </option>
+          <option key={c.id} value={c.id}>{c.name}</option>
         ))}
       </select>
 
@@ -271,10 +347,10 @@ export default function EditPostForm({ post, categories }: Props) {
       {showCropper && photoFile && (
         <ImageCropModal
           file={photoFile}
-          onClose={() => setShowCropper(false)}
           currentPhotoUrl={form.featured_photo}
+          onClose={() => setShowCropper(false)}
           onUploadSuccess={(url) => {
-            setForm((prev) => {
+            setForm(prev => {
               const updated = { ...prev, featured_photo: url };
               sendPreviewData(updated);
               return updated;

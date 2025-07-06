@@ -1,8 +1,7 @@
 'use server';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { RequireAuth } from '@/app/lib/auth/requireAuth';
-import { ROLES } from '@/app/lib/auth/roles';
+import { requireApiAuth } from '@/app/lib/auth/requireApiAuth';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import fs from 'fs/promises';
@@ -15,7 +14,8 @@ const UPLOAD_DIR = path.join(process.cwd(), 'public/uploads/posts');
 export async function POST(req: NextRequest) {
   try {
     // ✅ Require auth for upload
-    await RequireAuth({ roles: [ROLES.USER, ROLES.MODERATOR, ROLES.ADMIN] });
+     await requireApiAuth({ roles: ['USER', 'MODERATOR', 'ADMIN'] });
+
 
     const formData = await req.formData();
     const rawFile = formData.get('file') as File;

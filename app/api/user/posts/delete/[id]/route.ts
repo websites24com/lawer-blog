@@ -4,15 +4,13 @@ import fs from 'fs/promises';
 import type { RowDataPacket } from 'mysql2';
 
 import { db } from '@/app/lib/db';
-import { RequireAuth } from '@/app/lib/auth/requireAuth';
-import { ROLES } from '@/app/lib/auth/roles';
+import { requireApiAuth } from '@/app/lib/auth/requireApiAuth';
 
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
   try {
     // ✅ Step 1: Auth and role validation
-    const { user } = await RequireAuth({
-      roles: [ROLES.USER, ROLES.MODERATOR, ROLES.ADMIN],
-    });
+    const { user } = await requireApiAuth({ roles: ['USER', 'MODERATOR', 'ADMIN'] });
+
 
     const postId = parseInt(params.id, 10);
     if (isNaN(postId)) {
@@ -32,7 +30,9 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
 
     // ✅ Step 3: Access check
     const isOwner = post.user_id === user.id;
-    const isPrivileged = [ROLES.ADMIN, ROLES.MODERATOR].includes(user.role);
+    const isPrivileged = ['ADMIN', 'MODERATOR'].includes(user.role);
+
+    
 
     if (!isOwner && !isPrivileged) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
