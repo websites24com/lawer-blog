@@ -89,12 +89,12 @@ export default function AuthorInfo({
         </span>
       )}
 
-      {/* ✅ Location */}
+      {/* ✅ Location links (fixed to use slugs instead of query params) */}
       {city_name && (
         <span style={{ color: '#555', fontSize: '0.95rem' }}>
           • City:{' '}
           <Link
-            href={`/blog?city=${encodeURIComponent(city_name)}`}
+            href={`/blog/location/city/${encodeURIComponent(city_name)}`}
             style={{ color: '#0070f3', textDecoration: 'none' }}
           >
             {city_name}
@@ -106,7 +106,7 @@ export default function AuthorInfo({
         <span style={{ color: '#555', fontSize: '0.95rem' }}>
           • State:{' '}
           <Link
-            href={`/blog?state=${encodeURIComponent(state_name)}`}
+            href={`/blog/location/state/${encodeURIComponent(state_name)}`}
             style={{ color: '#0070f3', textDecoration: 'none' }}
           >
             {state_name}
@@ -118,7 +118,7 @@ export default function AuthorInfo({
         <span style={{ color: '#555', fontSize: '0.95rem' }}>
           • Country:{' '}
           <Link
-            href={`/blog?country=${encodeURIComponent(country_name)}`}
+            href={`/blog/location/country/${encodeURIComponent(country_name)}`}
             style={{ color: '#0070f3', textDecoration: 'none' }}
           >
             {country_name}

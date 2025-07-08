@@ -1,3 +1,4 @@
+// ---------- USER ROLES ----------
 export const ROLES = {
   USER: 'USER',
   MODERATOR: 'MODERATOR',
@@ -5,9 +6,9 @@ export const ROLES = {
 } as const;
 
 export type UserRole = (typeof ROLES)[keyof typeof ROLES];
-
 export const ALL_ROLES: UserRole[] = Object.values(ROLES);
 
+// ---------- SESSION ----------
 export type SessionUser = {
   id: number;
   email: string | null;
@@ -17,6 +18,7 @@ export type SessionUser = {
   provider_account_id: string | null;
 };
 
+// ---------- USER TYPES ----------
 export type UserRow = {
   id: number;
   first_name: string;
@@ -40,10 +42,7 @@ export type UserRow = {
   city_id: number | null;
   location: { lat: number; lon: number };
   created_at: string;
-
-  
 };
-
 
 export type SimpleUser = {
   id: number;
@@ -63,53 +62,29 @@ export type FullUserData = UserRow & {
   followers: SimpleUser[];
 };
 
-
+// ---------- POST TYPES ----------
 export type PostSummary = {
   id: number;
   slug: string;
-  title: string;
-  status: string;
-  featured_photo: string | null;
-  country_name: string | null;
-  state_name: string | null;
-  city_name: string | null;
-
-};
-
-export type PaginationParams = {
-  postsPage?: number;
-  commentsPage?: number;
-  followersPage?: number;
-  followedPage?: number;
-  pageSize?: number;
-};
-
-export type Comment = {
-  id: number;
-  post_id: number;
-  parent_id: number | null;
-  message: string;
   created_at: string;
-  status: 'pending' | 'approved' | 'declined';
-  edited_by: number | null;
-  edited_at: string | null;
-  post_slug: string;
-  post_title: string | null;
-};
+  title: string;
+  excerpt: string;
+  status: 'approved'; // enforced in getPostsByCategorySlug
+  featured_photo: string | null;
+  photo_alt: string | null;
+  country_name?: string | null;
+  state_name?: string | null;
+  city_name?: string | null;
+ category: Category | null;
 
-
-export type CommentWithUser = Comment & {
-  user: SimpleUser;
-  replies: CommentWithUser[];
-};
-
-
-
-
-export type Category = {
-  id: number;
-  name: string;
-  slug: string;
+  followed_by_current_user: boolean;
+  tags: string[];
+  user: {
+    first_name: string;
+    last_name: string;
+    avatar_url: string | null;
+    slug: string;
+  };
 };
 
 export type PostWithDetails = {
@@ -135,20 +110,51 @@ export type PostWithDetails = {
   state_name: string | null;
   city_name: string | null;
   location: { lat: number; lon: number };
-
   user: SimpleUser;
-
   category: {
     id: number;
     name: string;
-    slug: string; // ✅ required for post.category.slug
-  };
-
+    slug: string;
+  } | null;
   followed_by_current_user: boolean;
   comments: CommentWithUser[];
-  tags: string[]; // ✅ required for post.tags.map
+  tags: string[];
 };
 
+// ---------- COMMENT TYPES ----------
+export type Comment = {
+  id: number;
+  post_id: number;
+  parent_id: number | null;
+  message: string;
+  created_at: string;
+  status: 'pending' | 'approved' | 'declined';
+  edited_by: number | null;
+  edited_at: string | null;
+  post_slug: string;
+  post_title: string | null;
+};
 
+export type CommentWithUser = Comment & {
+  user: SimpleUser;
+  replies: CommentWithUser[];
+};
 
+// ---------- CATEGORY ----------
+export type Category = {
+  id: number;
+  name: string;
+  slug: string;
+};
+
+// ---------- PAGINATION ----------
+export type PaginationParams = {
+  postsPage?: number;
+  commentsPage?: number;
+  followersPage?: number;
+  followedPage?: number;
+  pageSize?: number;
+};
+
+// ---------- REFS ----------
 export type formRef = React.RefObject<HTMLFormElement>;

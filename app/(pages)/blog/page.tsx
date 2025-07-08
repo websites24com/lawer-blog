@@ -3,20 +3,26 @@ import { getAllApprovedPosts, getApprovedPostCount } from '@/app/lib/posts';
 import type { PostSummary } from '@/app/lib/definitions';
 import FollowButton from '@/app/components/posts/FollowPostButton';
 import ImageWithFallback from '@/app/components/global/ImageWithFallback';
-import FancyDate from '@/app/components/global/date/FancyDate';
+
 import Pagination from '@/app/components/global/pagination/Pagination';
 import Link from 'next/link';
+import AuthorInfo from '@/app/components/user/AuthorInfo';
 
-// Helper to clean HTML tags from excerpt
+
 function stripHtml(html: string): string {
   return html.replace(/<[^>]*>?/gm, '');
 }
 
-// Blog page with server-side pagination
 export default async function BlogPage({
   searchParams,
 }: {
-  searchParams?: { page?: string };
+  searchParams?: {
+  page?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+};
+
 }) {
   const session = await auth();
   const userId = session?.user?.id || 0;
@@ -37,13 +43,14 @@ export default async function BlogPage({
       <ul>
         {posts.map((post) => (
           <li key={post.id}>
+            {/* ✅ Featured image */}
             <Link href={`/blog/${post.slug}`}>
               <div style={{ borderBottom: '1px solid #ccc', padding: '1rem 0' }}>
                 {post.featured_photo && (
                   <div className="image-wrapper">
                     <ImageWithFallback
                       src={post.featured_photo}
-                      alt="Featured Post"
+                      alt={post.photo_alt || 'Featured Post'}
                       imageType="post"
                       className=""
                       wrapperClassName=""
@@ -53,26 +60,36 @@ export default async function BlogPage({
               </div>
             </Link>
 
+            {/* ✅ Title */}
             <Link href={`/blog/${post.slug}`}>
               <h2>{post.title}</h2>
             </Link>
 
-            <p>
-              <FancyDate dateString={post.created_at} /> • {post.category} •{' '}
-              {post.user.first_name} {post.user.last_name}
-            </p>
+            {/* ✅ Excerpt */}
+            <p>{stripHtml(post.excerpt)}...</p>
 
+            {/* ✅ Author Info injected here */}
+            <AuthorInfo
+              user_slug={post.user.slug}
+              first_name={post.user.first_name}
+              last_name={post.user.last_name}
+              avatar_url={post.user.avatar_url}
+              created_at={post.created_at}
+              category={post.category}
+              country_name={post.country_name}
+              state_name={post.state_name}
+              city_name={post.city_name}
+            />
+
+            {/* ✅ Follow Button */}
             <FollowButton
               postId={post.id}
               initiallyFollowing={post.followed_by_current_user}
             />
-
-            <p>{stripHtml(post.excerpt)}...</p>
           </li>
         ))}
       </ul>
 
-      {/* ✅ PAGINATION with SCSS styles */}
       <Pagination
         currentPage={currentPage}
         totalPages={totalPages}
