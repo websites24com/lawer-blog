@@ -8,18 +8,19 @@ import RichTextEditor from '@/app/components/global/RichTextEditor';
 import ImageCropModal from '@/app/components/posts/images/ImageCropModal';
 import TagInput from '@/app/components/posts/TagInput'; // ✅ NEW
 import { Icon } from '@iconify/react';
+import type { Category, Language, Country, State, City } from '@/app/lib/definitions'; 
+
 
 let previewWindow: Window | null = null;
 
 interface CreatePostFormProps {
-  categories: { id: number; name: string }[];
+  categories: Category[];
+  languages: Language[];
+  countries: Country[];
 }
 
-interface Country { id: number; name: string }
-interface State { id: number; name: string }
-interface City { id: number; name: string }
 
-export default function CreatePostForm({ categories }: CreatePostFormProps) {
+export default function CreatePostForm({ categories, languages, countries: initialCountries }: CreatePostFormProps) {
   const [form, setForm] = useState({
     title: '',
     excerpt: '',
@@ -28,9 +29,12 @@ export default function CreatePostForm({ categories }: CreatePostFormProps) {
     city_id: '',
     content: '',
     category_id: categories[0]?.id.toString() || '1',
+    language_id: languages[0]?.id.toString() || '1',
     featured_photo: '/uploads/posts/default.jpg',
     tags: '',
   });
+
+  // States
 
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [showCropper, setShowCropper] = useState(false);
@@ -43,41 +47,43 @@ export default function CreatePostForm({ categories }: CreatePostFormProps) {
   const [contentCount, setContentCount] = useState(0);
   const [isPreviewReady, setIsPreviewReady] = useState(false);
 
-  const [countries, setCountries] = useState<Country[]>([]);
+  const countries = initialCountries;
+
   const [states, setStates] = useState<State[]>([]);
   const [cities, setCities] = useState<City[]>([]);
-
-
-  async function fetchCountriesClient(): Promise<Country[]> {
-    const res = await fetch('/api/locations/countries');
-    const data = await res.json();
-    console.log('🌍 Loaded countries:', data);
-    return data;
-  }
-
-  async function fetchStatesClient(countryId: number): Promise<State[]> {
-    const res = await fetch(`/api/locations/states/${countryId}`);
-    const data = await res.json();
-    console.log(`🏙️ Loaded states for country ${countryId}:`, data);
-    return data;
-  }
-
-  async function fetchCitiesClient(stateId: number): Promise<City[]> {
-    const res = await fetch(`/api/locations/cities/${stateId}`);
-    const data = await res.json();
-    console.log(`🏘️ Loaded cities for state ${stateId}:`, data);
-    return data;
-  }
-
-useEffect(() => {
-  fetchCountriesClient().then(setCountries).catch(console.error);
-}, []);
+  const [loadingStates, setLoadingStates] = useState(false); // 🔄 new line
+  const [loadingCities, setLoadingCities] = useState(false); // 🔄 new line
 
 
 
   
 
- const handleChange = async (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+ async function fetchStatesClient(countryId: number): Promise<State[]> {
+  setLoadingStates(true); // ⏳ start spinner
+  try {
+    const res = await fetch(`/api/locations/states/${countryId}`);
+    const data = await res.json();
+    console.log(`🏙️ Loaded states for country ${countryId}:`, data);
+    return data;
+  } finally {
+    setLoadingStates(false); // ✅ stop spinner
+  }
+}
+
+
+ async function fetchCitiesClient(stateId: number): Promise<City[]> {
+  setLoadingCities(true); // ⏳ start spinner
+  try {
+    const res = await fetch(`/api/locations/cities/${stateId}`);
+    const data = await res.json();
+    console.log(`🏘️ Loaded cities for state ${stateId}:`, data);
+    return data;
+  } finally {
+    setLoadingCities(false); // ✅ stop spinner
+  }
+}
+
+const handleChange = async (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
   const { name, value } = e.target;
   setForm(prev => {
     const updated = { ...prev, [name]: value };
@@ -148,6 +154,7 @@ useEffect(() => {
         formData.append('featured_photo_url', form.featured_photo);
         formData.append('tags', form.tags || '');
         formData.append('country_id', form.country_id);
+        formData.append('language_id', form.language_id);
         formData.append('state_id', form.state_id);
         formData.append('city_id', form.city_id);
 
@@ -271,24 +278,51 @@ useEffect(() => {
 </select>
 
 <label>State</label>
-<select name="state_id" value={form.state_id} onChange={handleChange} required>
-  <option value="">Select State</option>
-  {states.map(s => <option key={s.id} value={String(s.id)}>{s.name}</option>)}
-</select>
+{loadingStates ? (
+  <div >Loading states...</div> // 🌀 You can replace with <Spinner /> component if you have one
+) : (
+  <select name="state_id" value={form.state_id} onChange={handleChange} required>
+    <option value="">Select State</option>
+    {states.map(s => (
+      <option key={s.id} value={String(s.id)}>{s.name}</option>
+    ))}
+  </select>
+)}
 
 <label>City</label>
-<select name="city_id" value={form.city_id} onChange={handleChange} required>
-  <option value="">Select City</option>
-  {cities.map(c => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
-</select>
+{loadingCities ? (
+  <div >Loading cities...</div> // 🌀 Replace with your <Spinner /> if available
+) : (
+  <select name="city_id" value={form.city_id} onChange={handleChange} required>
+    <option value="">Select City</option>
+    {cities.map(c => (
+      <option key={c.id} value={String(c.id)}>{c.name}</option>
+    ))}
+  </select>
+)}
 
 
-      <label htmlFor="category_id">Category:</label>
+<label htmlFor="category_id">Category:</label>
       <select name="category_id" value={form.category_id} onChange={handleChange}>
         {categories.map((cat) => (
           <option key={cat.id} value={cat.id}>{cat.name}</option>
         ))}
       </select>
+<label htmlFor="language_id">Language:</label>
+<select
+  name="language_id"
+  value={form.language_id}
+  onChange={handleChange}
+  required
+>
+  <option value="">Select Language</option>
+  {languages.map((lang) => (
+    <option key={lang.id} value={String(lang.id)}>
+      {lang.name}
+    </option>
+  ))}
+</select>
+
 
       <label>Current Photo:</label>
       <div className="image-wrapper">

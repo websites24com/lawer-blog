@@ -439,7 +439,6 @@ async function seed() {
   await connection.query(`CREATE DATABASE lawyer_blog;`);
   await connection.changeUser({ database: 'lawyer_blog' });
 
-  // ✅ Table creation untouched
   await connection.query(`
     CREATE TABLE countries (
       id INT AUTO_INCREMENT PRIMARY KEY,
@@ -465,6 +464,7 @@ async function seed() {
       lon DECIMAL(10,6),
       FOREIGN KEY (state_id) REFERENCES states(id) ON DELETE CASCADE
     );
+
     CREATE TABLE users (
       id INT PRIMARY KEY AUTO_INCREMENT,
       first_name VARCHAR(100) NOT NULL,
@@ -494,17 +494,16 @@ async function seed() {
       FOREIGN KEY (city_id) REFERENCES cities(id)
     );
 
-CREATE TABLE IF NOT EXISTS user_locations (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL,
-    location POINT NOT NULL,
-    lat DECIMAL(10, 6) GENERATED ALWAYS AS (ST_Y(location)) STORED,
-    lon DECIMAL(10, 6) GENERATED ALWAYS AS (ST_X(location)) STORED,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    SPATIAL INDEX(location)
-  );
-
+    CREATE TABLE IF NOT EXISTS user_locations (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
+      location POINT NOT NULL,
+      lat DECIMAL(10, 6) GENERATED ALWAYS AS (ST_Y(location)) STORED,
+      lon DECIMAL(10, 6) GENERATED ALWAYS AS (ST_X(location)) STORED,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      SPATIAL INDEX(location)
+    );
 
     CREATE TABLE user_followers (
       follower_id INT NOT NULL,
@@ -513,11 +512,19 @@ CREATE TABLE IF NOT EXISTS user_locations (
       FOREIGN KEY (follower_id) REFERENCES users(id) ON DELETE CASCADE,
       FOREIGN KEY (followed_id) REFERENCES users(id) ON DELETE CASCADE
     );
+
     CREATE TABLE categories (
       id INT AUTO_INCREMENT PRIMARY KEY,
       name VARCHAR(100) NOT NULL,
       slug VARCHAR(100) NOT NULL UNIQUE
     );
+
+    CREATE TABLE languages (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(100) NOT NULL,
+      slug VARCHAR(100) NOT NULL UNIQUE
+    );
+
     CREATE TABLE posts (
       id INT AUTO_INCREMENT PRIMARY KEY,
       slug VARCHAR(255) NOT NULL UNIQUE,
@@ -530,6 +537,7 @@ CREATE TABLE IF NOT EXISTS user_locations (
       status ENUM('pending', 'approved', 'draft', 'declined') DEFAULT 'pending',
       user_id INT,
       category_id INT,
+      language_id INT,
       edited_by INT DEFAULT NULL,
       edited_at TIMESTAMP NULL DEFAULT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -541,11 +549,13 @@ CREATE TABLE IF NOT EXISTS user_locations (
       SPATIAL INDEX(location),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
       FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL,
+      FOREIGN KEY (language_id) REFERENCES languages(id) ON DELETE SET NULL,
       FOREIGN KEY (edited_by) REFERENCES users(id) ON DELETE SET NULL,
       FOREIGN KEY (country_id) REFERENCES countries(id),
       FOREIGN KEY (state_id) REFERENCES states(id),
       FOREIGN KEY (city_id) REFERENCES cities(id)
     );
+
     CREATE TABLE comments (
       id INT AUTO_INCREMENT PRIMARY KEY,
       post_id INT NOT NULL,
@@ -561,6 +571,7 @@ CREATE TABLE IF NOT EXISTS user_locations (
       FOREIGN KEY (parent_id) REFERENCES comments(id) ON DELETE CASCADE,
       FOREIGN KEY (edited_by) REFERENCES users(id) ON DELETE SET NULL
     );
+
     CREATE TABLE followed_posts (
       user_id INT NOT NULL,
       post_id INT NOT NULL,
@@ -568,11 +579,13 @@ CREATE TABLE IF NOT EXISTS user_locations (
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
       FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
     );
+
     CREATE TABLE tags (
       id INT AUTO_INCREMENT PRIMARY KEY,
       name VARCHAR(50) NOT NULL UNIQUE,
       slug VARCHAR(100) NOT NULL UNIQUE
     );
+
     CREATE TABLE post_tags (
       post_id INT NOT NULL,
       tag_id INT NOT NULL,
@@ -584,8 +597,6 @@ CREATE TABLE IF NOT EXISTS user_locations (
 
   console.log('✅ All tables created successfully. Now inserting locations...');
 
-   // Use lat/lon of Mexico from first state (you can hardcode if preferred)
-  
   const mexicoLat = mxstates[14].lat;
   const mexicoLon = mxstates[14].lon;
 
@@ -610,8 +621,39 @@ CREATE TABLE IF NOT EXISTS user_locations (
     }
   }
 
-
   console.log('✅ Location data inserted successfully.');
+
+  // Seed categories
+  const categories = [
+    { name: 'Legal Advice', slug: 'legal-advice' },
+    { name: 'Immigration', slug: 'immigration' },
+    { name: 'Business', slug: 'business' },
+    { name: 'Family Law', slug: 'family-law' },
+  ];
+
+  for (const cat of categories) {
+    await connection.query(
+      'INSERT INTO categories (name, slug) VALUES (?, ?)',
+      [cat.name, cat.slug]
+    );
+  }
+
+  // ✅ Seed languages
+  const languages = [
+    { name: 'English', slug: 'english' },
+    { name: 'Spanish', slug: 'spanish' },
+    { name: 'German', slug: 'german' },
+  ];
+
+  for (const lang of languages) {
+    await connection.query(
+      'INSERT INTO languages (name, slug) VALUES (?, ?)',
+      [lang.name, lang.slug]
+    );
+  }
+
+  console.log('✅ Categories and Languages inserted.');
+
   await connection.end();
 }
 

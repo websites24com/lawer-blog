@@ -1,16 +1,30 @@
 import { db } from '@/app/lib/db';
 import CreatePostForm from '@/app/components/posts/CreatePostForm';
 import { requireAuth } from '@/app/lib/auth/requireAuth';
-
-type Category = { id: number; name: string };
+import type { Category, Language, Country } from '@/app/lib/definitions';
 
 export default async function NewPostPage() {
+  // Require authentication with allowed roles
   await requireAuth({
     roles: ['USER', 'MODERATOR', 'ADMIN'],
   });
 
-  const [rows] = await db.query('SELECT id, name FROM categories');
-  const categories = JSON.parse(JSON.stringify(rows)) as Category[];
+  // Load categories, languages, and countries from the database
+  const [categoriesRows] = await db.query('SELECT id, name FROM categories');
+  const [languagesRows] = await db.query('SELECT id, name FROM languages');
+  const [countriesRows] = await db.query('SELECT id, name FROM countries');
 
-  return <CreatePostForm categories={categories} />;
+  // Cast rows to typed arrays
+  const categories = JSON.parse(JSON.stringify(categoriesRows)) as Category[];
+  const languages = JSON.parse(JSON.stringify(languagesRows)) as Language[];
+  const countries = JSON.parse(JSON.stringify(countriesRows)) as Country[];
+
+  // Render the form component with all props
+  return (
+    <CreatePostForm
+      categories={categories}
+      languages={languages}
+      countries={countries}
+    />
+  );
 }

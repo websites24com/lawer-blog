@@ -61,6 +61,10 @@ async function seedFaker() {
   }
   console.log('✅ Categories seeded.');
 
+  // ✅ Fetch language IDs
+  const [languageRows] = await connection.query(`SELECT id FROM languages`);
+  const languageIds = languageRows.map(row => row.id);
+
   // POSTS
   console.log('🔄 Seeding 40 posts...');
   const postIds = [];
@@ -72,17 +76,19 @@ async function seedFaker() {
     const photo = '/uploads/posts/default.jpg';
     const user_id = Math.floor(Math.random() * 40) + 1;
     const category_id = Math.floor(Math.random() * 5) + 1;
+    const language_id = faker.helpers.arrayElement(languageIds); // ✅ ONLY THIS LINE ADDED
     const lat = faker.location.latitude();
     const lon = faker.location.longitude();
     const edited = Math.random() < 0.4;
+
     const [result] = await connection.query(
       `INSERT INTO posts 
-        (slug, title, excerpt, content, featured_photo, photo_alt, photo_title, status, user_id, category_id,
+        (slug, title, excerpt, content, featured_photo, photo_alt, photo_title, status, user_id, category_id, language_id,
          country_id, state_id, city_id, location, edited_by, edited_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'approved', ?, ?, 1, FLOOR(1 + RAND() * 32), FLOOR(1 + RAND() * 160), POINT(?, ?), ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'approved', ?, ?, ?, 1, FLOOR(1 + RAND() * 32), FLOOR(1 + RAND() * 160), POINT(?, ?), ?, ?)`,
       [
         slug, title, excerpt, content, photo, title, title,
-        user_id, category_id, lat, lon,
+        user_id, category_id, language_id, lat, lon,
         edited ? user_id : null,
         edited ? faker.date.recent() : null
       ]

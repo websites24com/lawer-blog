@@ -1,3 +1,35 @@
+// ---------- CATEGORY ----------
+export type Category = {
+  id: number;
+  name: string;
+  slug: string;
+};
+
+// ---------- LANGUAGE ---------- ✅ new block
+export type Language = {
+  id: number;
+  name: string;
+  slug: string;
+};
+
+
+// ---------- LOCATION TYPES ---------- ✅ new block
+
+export type Country = {
+  id: number;
+  name: string;
+};
+
+export type State = {
+  id: number;
+  name: string;
+};
+
+export type City = {
+  id: number;
+  name: string;
+};
+
 // ---------- USER ROLES ----------
 export const ROLES = {
   USER: 'USER',
@@ -75,8 +107,8 @@ export type PostSummary = {
   country_name?: string | null;
   state_name?: string | null;
   city_name?: string | null;
- category: Category | null;
-
+  category: Category | null;
+  language: Language | null;
   followed_by_current_user: boolean;
   tags: string[];
   user: {
@@ -111,11 +143,8 @@ export type PostWithDetails = {
   city_name: string | null;
   location: { lat: number; lon: number };
   user: SimpleUser;
-  category: {
-    id: number;
-    name: string;
-    slug: string;
-  } | null;
+  category: Category | null; // ✅ updated from inline to shared type
+  language: Language | null; // ✅ new line
   followed_by_current_user: boolean;
   comments: CommentWithUser[];
   tags: string[];
@@ -140,12 +169,7 @@ export type CommentWithUser = Comment & {
   replies: CommentWithUser[];
 };
 
-// ---------- CATEGORY ----------
-export type Category = {
-  id: number;
-  name: string;
-  slug: string;
-};
+
 
 // ---------- PAGINATION ----------
 export type PaginationParams = {
@@ -158,3 +182,5 @@ export type PaginationParams = {
 
 // ---------- REFS ----------
 export type formRef = React.RefObject<HTMLFormElement>;
+
+

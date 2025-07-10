@@ -32,6 +32,9 @@ export async function POST(req: NextRequest) {
      // ✅ Authenticate the user and restrict to allowed roles
     const { user } = await requireApiAuth({ roles: ['USER', 'MODERATOR', 'ADMIN'] });
 
+    const status = user.role === 'ADMIN' ? 'approved' : 'pending';
+
+
     // ✅ Step 2: Parse form data
     const formData = await req.formData();
     const title = formData.get('title')?.toString().trim() || '';
@@ -40,8 +43,8 @@ export async function POST(req: NextRequest) {
     const country_id = Number(formData.get('country_id')) || null;
     const state_id = Number(formData.get('state_id')) || null;
     const city_id = Number(formData.get('city_id')) || null;
-
     const category_id = Number(formData.get('category_id')) || 1;
+    const language_id = Number(formData.get('language_id')) || 1;
     const featured_photo_url = formData.get('featured_photo_url')?.toString();
     const rawTags = formData.get('tags')?.toString() || '';
 
@@ -63,17 +66,19 @@ export async function POST(req: NextRequest) {
     const slug = uuid();
     const [result] = await db.execute(
       `INSERT INTO posts (
-        title, excerpt, content, category_id, user_id,
+        title, excerpt, content, category_id, language_id, user_id,
         featured_photo, status, slug, location, country_id, state_id, city_id
       )
-      VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ST_GeomFromText(?), ?, ?, ?)`,
+      VALUES (?, ?, ?, ?, ?, ?, ?, '?', ?, ST_GeomFromText(?), ?, ?, ?)`,
       [
         title,
         excerpt,
         content,
         category_id,
+        language_id,
         user.id,
         photoPath,
+        status,
         slug,
         `POINT(${lon} ${lat})`, // POINT(X Y) = POINT(lon lat)
         country_id,
