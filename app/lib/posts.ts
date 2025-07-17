@@ -1040,3 +1040,159 @@ export async function getPostsByCitySlug(
     totalCount: countRows[0].count,
   };
 }
+
+// ✅ Get all approved posts by language slug
+export async function getPostsByLanguageSlug(
+  slug: string,
+  viewerId: number = 0,
+  page: number = 1,
+  pageSize: number = 10
+): Promise<{ posts: PostSummary[]; totalCount: number }> {
+  const decodedSlug = decodeURIComponent(slug);
+  const offset = (page - 1) * pageSize;
+  const limit = pageSize;
+
+  const [rows] = await db.query<any[]>(
+    `
+    SELECT 
+      posts.id,
+      posts.slug,
+      posts.title,
+      posts.excerpt,
+      posts.status,
+      posts.created_at,
+      posts.featured_photo,
+      posts.photo_alt,
+
+      -- Location info
+      countries.name AS country_name,
+      states.name AS state_name,
+      cities.name AS city_name,
+
+      -- Category info
+      categories.id AS category_id,
+      categories.name AS category_name,
+      categories.slug AS category_slug,
+
+      -- Language info
+      ln.id AS language_id,
+      ln.name AS language_name,
+      ln.slug AS language_slug,
+
+      -- User info
+      users.first_name,
+      users.last_name,
+      users.avatar_url,
+      users.slug AS user_slug,
+
+      -- Tags
+      GROUP_CONCAT(DISTINCT t.name ORDER BY t.name SEPARATOR ',') AS tags,
+
+      ${
+        viewerId
+          ? `EXISTS (
+               SELECT 1 FROM followed_posts 
+               WHERE followed_posts.user_id = ${db.escape(viewerId)} 
+               AND followed_posts.post_id = posts.id
+             ) AS followed_by_current_user`
+          : `FALSE AS followed_by_current_user`
+      }
+
+    FROM posts
+    LEFT JOIN categories ON posts.category_id = categories.id
+    LEFT JOIN languages ln ON posts.language_id = ln.id
+    LEFT JOIN users ON posts.user_id = users.id
+    LEFT JOIN countries ON posts.country_id = countries.id
+    LEFT JOIN states ON posts.state_id = states.id
+    LEFT JOIN cities ON posts.city_id = cities.id
+    LEFT JOIN post_tags pt ON posts.id = pt.post_id
+    LEFT JOIN tags t ON pt.tag_id = t.id
+
+    WHERE posts.status = 'approved'
+      AND LOWER(ln.slug) = LOWER(?)
+
+    GROUP BY posts.id
+    ORDER BY posts.created_at DESC
+    LIMIT ? OFFSET ?
+    `,
+    [decodedSlug, limit, offset]
+  );
+
+  const [countRows] = await db.query<any[]>(
+    `
+    SELECT COUNT(DISTINCT posts.id) AS count
+    FROM posts
+    LEFT JOIN languages ln ON posts.language_id = ln.id
+    WHERE posts.status = 'approved'
+      AND LOWER(ln.slug) = LOWER(?)
+    `,
+    [slug]
+  );
+
+  const posts: PostSummary[] = rows.map((row) => ({
+    id: row.id,
+    slug: row.slug,
+    title: row.title,
+    excerpt: row.excerpt ?? '',
+    status: 'approved',
+    created_at: new Date(row.created_at).toISOString(),
+    featured_photo: row.featured_photo ?? null,
+    photo_alt: row.photo_alt ?? null,
+    country_name: row.country_name ?? null,
+    state_name: row.state_name ?? null,
+    city_name: row.city_name ?? null,
+    category: row.category_id
+      ? {
+          id: row.category_id,
+          name: row.category_name,
+          slug: row.category_slug,
+        }
+      : null,
+    language: row.language_id
+      ? {
+          id: row.language_id,
+          name: row.language_name,
+          slug: row.language_slug,
+        }
+      : null,
+    followed_by_current_user: !!row.followed_by_current_user,
+    tags: row.tags ? row.tags.split(',') : [],
+    user: {
+      first_name: row.first_name,
+      last_name: row.last_name,
+      avatar_url: row.avatar_url ?? null,
+      slug: row.user_slug,
+    },
+  }));
+
+  return {
+    posts,
+    totalCount: countRows[0].count,
+  };
+}
+
+
+
+export async function getAllLanguages(): Promise<Language[]> {
+  const [rows] = await db.query<RowDataPacket[]>(
+    `SELECT id, name, slug FROM languages ORDER BY name ASC`
+  );
+
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    slug: row.slug,
+  }));
+}
+
+
+export async function getAllCountries(): Promise<Country[]> {
+  const [rows] = await db.query<RowDataPacket[]>(
+    `SELECT id, name FROM countries ORDER BY name ASC`
+  );
+
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+  }));
+}

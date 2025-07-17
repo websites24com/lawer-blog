@@ -1,5 +1,5 @@
 'use server';
-
+// app/api/user/posts/create/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { requireApiAuth } from '@/app/lib/auth/requireApiAuth';
 import { db } from '@/app/lib/db';
@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
         title, excerpt, content, category_id, language_id, user_id,
         featured_photo, status, slug, location, country_id, state_id, city_id
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, '?', ?, ST_GeomFromText(?), ?, ?, ?)`,
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ST_GeomFromText(?), ?, ?, ?)`,
       [
         title,
         excerpt,

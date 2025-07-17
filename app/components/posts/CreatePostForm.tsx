@@ -24,14 +24,16 @@ export default function CreatePostForm({ categories, languages, countries: initi
   const [form, setForm] = useState({
     title: '',
     excerpt: '',
+    content: '',
+    tags: '',
     country_id: '',
     state_id: '',
     city_id: '',
-    content: '',
     category_id: categories[0]?.id.toString() || '1',
     language_id: languages[0]?.id.toString() || '1',
+   
     featured_photo: '/uploads/posts/default.jpg',
-    tags: '',
+    
   });
 
   // States

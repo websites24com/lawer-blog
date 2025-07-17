@@ -1,36 +1,37 @@
 import { auth } from '@/app/lib/auth/auth';
-import { getPostsByTag } from '@/app/lib/posts';
+import { getPostsByLanguageSlug } from '@/app/lib/posts';
 import type { PostSummary } from '@/app/lib/definitions';
 import ImageWithFallback from '@/app/components/global/ImageWithFallback';
 import FollowButton from '@/app/components/posts/FollowPostButton';
 import Pagination from '@/app/components/global/pagination/Pagination';
 import AuthorInfo from '@/app/components/user/AuthorInfo';
 import Link from 'next/link';
+import { capitalizeFirstLetter } from '@/app/utils/capitalizeFirstLetter';
 
 // Helper to strip HTML tags from excerpt
 function stripHtml(html: string): string {
   return html.replace(/<[^>]*>?/gm, '');
 }
 
-type TagPageProps = {
+type LanguagePageProps = {
   params: { slug: string };
   searchParams?: { page?: string };
 };
 
-export default async function TagPage({ params, searchParams }: TagPageProps) {
+export default async function LanguagePage({ params, searchParams }: LanguagePageProps) {
   const session = await auth();
   const userId = session?.user?.id || 0;
   const currentPage = Number(searchParams?.page) || 1;
   const pageSize = 3;
 
-  const { posts, totalCount } = await getPostsByTag(params.slug, userId, currentPage, pageSize);
+  const { posts, totalCount } = await getPostsByLanguageSlug(params.slug, userId, currentPage, pageSize);
   const totalPages = Math.ceil(totalCount / pageSize);
 
   return (
     <main>
-      <h1>Posts tagged with: #{params.slug}</h1>
+      <h1>Posts written in: {capitalizeFirstLetter(params.slug)}</h1>
 
-      {posts.length === 0 && <p>No posts found for this tag.</p>}
+      {posts.length === 0 && <p>No posts found for this language.</p>}
 
       <ul>
         {posts.map((post: PostSummary) => (
@@ -87,7 +88,7 @@ export default async function TagPage({ params, searchParams }: TagPageProps) {
       <Pagination
         currentPage={currentPage}
         totalPages={totalPages}
-        basePath={`/blog/tag/${params.slug}`}
+        basePath={`/blog/language/${encodeURIComponent(decodeURIComponent(params.slug))}`}
       />
     </main>
   );

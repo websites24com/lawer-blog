@@ -36,6 +36,7 @@
 @use 'components/fallback-image';
 @use 'components/comments';
 @use 'components/pagination';
+@use 'components/reactions';
 
 
 // ========================
@@ -49,3 +50,4 @@
 // 📄 Utils
 // ========================
 @use 'utils/spinner';
+@use 'utils/dialogswindows';

@@ -40,6 +40,22 @@ export const ROLES = {
 export type UserRole = (typeof ROLES)[keyof typeof ROLES];
 export const ALL_ROLES: UserRole[] = Object.values(ROLES);
 
+
+// ---------- AUTHOR INFO  ----------
+
+export type AuthorInfo = {
+  user_slug: string;
+  first_name: string;
+  last_name: string;
+  avatar_url?: string | null;
+  created_at: string | null;
+  category?: Category | null;
+  language: Language | null
+  country_name?: string | null;
+  state_name?: string | null;
+  city_name?: string | null;
+};
+
 // ---------- SESSION ----------
 export type SessionUser = {
   id: number;
@@ -130,7 +146,6 @@ export type PostWithDetails = {
   photo_title: string | null;
   status: 'pending' | 'approved' | 'draft' | 'declined';
   user_id: number | null;
-  category_id: number | null;
   created_at: string;
   updated_at: string;
   edited_by: number | null;
@@ -144,6 +159,8 @@ export type PostWithDetails = {
   location: { lat: number; lon: number };
   user: SimpleUser;
   category: Category | null; // ✅ updated from inline to shared type
+  category_id: number | null;
+  language_id: number | null;
   language: Language | null; // ✅ new line
   followed_by_current_user: boolean;
   comments: CommentWithUser[];
@@ -169,6 +186,42 @@ export type CommentWithUser = Comment & {
   replies: CommentWithUser[];
 };
 
+// ---------- REACTION TYPES ---------- ✅ new block
+
+export const REACTIONS = {
+  LIKE: 'like',
+  LOVE: 'love',
+  HAHA: 'haha',
+  WOW: 'wow',
+  SAD: 'sad',
+  ANGRY: 'angry',
+  DISLIKE: 'dislike',
+} as const;
+
+export type ReactionType = (typeof REACTIONS)[keyof typeof REACTIONS];
+export const ALL_REACTIONS: ReactionType[] = Object.values(REACTIONS);
+
+export type PostReaction = {
+  user_id: number;
+  post_id: number;
+  reaction: ReactionType;
+  created_at: string;
+};
+
+// ✅ Used for listing detailed post reactions (GET /api/reactions/post/[postId])
+export type ReactionEntry = {
+  user_id: number;
+  first_name: string;
+  last_name: string;
+  avatar_url: string | null;
+  reaction: ReactionType;
+  created_at: string;
+is_followed?: 0 | 1 | boolean;
+ user_slug: string;
+};
+
+
+
 
 
 // ---------- PAGINATION ----------
@@ -182,5 +235,7 @@ export type PaginationParams = {
 
 // ---------- REFS ----------
 export type formRef = React.RefObject<HTMLFormElement>;
+
+
 
 

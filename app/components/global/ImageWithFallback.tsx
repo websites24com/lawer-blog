@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import Spinner from '@/app/components/layout/Spinner';
 
@@ -12,6 +13,7 @@ type Props = {
   alt: string;
   className?: string;
   wrapperClassName?: string;
+  linkTo?: string; // ✅ NEW: optional link
 };
 
 export default function ImageWithFallback({
@@ -21,41 +23,36 @@ export default function ImageWithFallback({
   alt,
   className,
   wrapperClassName,
+  linkTo,
 }: Props) {
-  // Default fallback based on image type
   const defaultFallback =
     imageType === 'avatar'
       ? '/uploads/avatars/default.jpg'
       : '/uploads/posts/default.jpg';
 
-  // Resolve src helper
   const resolveSrc = (value: string | null | undefined) =>
     value && value.trim() !== '' ? value : undefined;
 
-  // State: resolved source and loading status
   const [imgSrc, setImgSrc] = useState<string>(
     resolveSrc(src) ?? resolveSrc(fallbackSrc) ?? defaultFallback
   );
   const [isLoading, setIsLoading] = useState(true);
 
-  // Re-run on prop changes (important for dynamic avatars)
   useEffect(() => {
     const newResolved =
       resolveSrc(src) ?? resolveSrc(fallbackSrc) ?? defaultFallback;
     setImgSrc(newResolved);
-    setIsLoading(true); // re-enable spinner when src changes
+    setIsLoading(true);
   }, [src, fallbackSrc]);
 
-  // Classes
   const effectiveWrapperClass =
     wrapperClassName || (imageType === 'avatar' ? 'image-wrapper-avatar' : 'image-wrapper');
 
   const effectiveImageClass =
     className || (imageType === 'avatar' ? 'fallback-image-avatar' : 'fallback-image');
 
-  return (
+  const imageElement = (
     <div className={effectiveWrapperClass} style={{ position: 'relative' }}>
-      {/* 🔄 Spinner while image loads */}
       {isLoading && (
         <div
           style={{
@@ -77,14 +74,17 @@ export default function ImageWithFallback({
         alt={alt}
         fill
         className={effectiveImageClass}
-        onLoad={() => setIsLoading(false)} // ✅ hide spinner
+        onLoad={() => setIsLoading(false)}
         onError={() => {
           if (imgSrc !== defaultFallback) {
             setImgSrc(defaultFallback);
-            setIsLoading(false); // also hide spinner on error
+            setIsLoading(false);
           }
         }}
       />
     </div>
   );
+
+  // ✅ If linkTo is provided, wrap image in <Link>
+  return linkTo ? <Link href={linkTo}>{imageElement}</Link> : imageElement;
 }

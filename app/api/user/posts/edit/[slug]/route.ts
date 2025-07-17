@@ -1,5 +1,5 @@
 'use server';
-
+// app/api/user/posts/edit/[slug]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { requireApiAuth } from '@/app/lib/auth/requireApiAuth';
 import { db } from '@/app/lib/db';
@@ -32,6 +32,8 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     // ✅ Authenticate the user and restrict to allowed roles
     const { user } = await requireApiAuth({ roles: ['USER', 'MODERATOR', 'ADMIN'] });
 
+    const status = user.role === 'ADMIN' ? 'approved' : 'pending';
+
     // ✅ Step 2: Parse form data
     const formData = await req.formData();
     const title = formData.get('title')?.toString().trim() || '';
@@ -42,6 +44,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     const city_id = Number(formData.get('city_id')) || null;
 
     const category_id = Number(formData.get('category_id')) || 1;
+    const language_id = Number(formData.get('language_id')) || 1;
     const featured_photo_url = formData.get('featured_photo_url')?.toString();
     const rawTags = formData.get('tags')?.toString() || '';
 
@@ -68,7 +71,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     // ✅ Step 5: Update post
     await db.query(
       `UPDATE posts SET
-        title = ?, excerpt = ?, content = ?, category_id = ?, featured_photo = ?,
+        title = ?, excerpt = ?, content = ?, category_id = ?, language_id = ?, status = ?, featured_photo = ?,
         location = ST_GeomFromText(?), country_id = ?, state_id = ?, city_id = ?
       WHERE id = ?`,
       [
@@ -76,6 +79,8 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
         excerpt,
         content,
         category_id,
+        language_id,
+        status,
         photoPath,
         `POINT(${lon} ${lat})`,
         country_id,

@@ -68,6 +68,7 @@ export default async function CountryPage({ params, searchParams }: CountryPageP
               avatar_url={post.user.avatar_url}
               created_at={post.created_at}
               category={post.category}
+              language={post.language}
               country_name={post.country_name}
               state_name={post.state_name}
               city_name={post.city_name}

@@ -593,6 +593,19 @@ async function seed() {
       FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE,
       FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE post_reactions (
+  user_id INT NOT NULL,
+  post_id INT NOT NULL,
+  reaction ENUM('like', 'love', 'haha', 'wow', 'sad', 'angry', 'dislike') NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, post_id),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
+);
+
+
+
   `);
 
   console.log('✅ All tables created successfully. Now inserting locations...');
@@ -653,6 +666,23 @@ async function seed() {
   }
 
   console.log('✅ Categories and Languages inserted.');
+
+
+  console.log('✅ Posts inserted, now inserting reactions...');
+
+await connection.query(`
+  INSERT INTO post_reactions (user_id, post_id, reaction) VALUES
+    (1, 1, 'like'),
+    (2, 1, 'love'),
+    (3, 1, 'dislike'),
+    (1, 2, 'haha'),
+    (2, 2, 'wow'),
+    (3, 2, 'sad'),
+    (1, 3, 'angry');
+`);
+
+console.log('✅ Reactions inserted.');
+
 
   await connection.end();
 }

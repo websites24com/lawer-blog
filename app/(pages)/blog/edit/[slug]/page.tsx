@@ -1,7 +1,12 @@
-import { getPostBySlug, getAllCategories } from '@/app/lib/posts';
+import {
+  getPostBySlug,
+  getAllCategories,
+  getAllLanguages,
+  getAllCountries,
+} from '@/app/lib/posts';
+
 import EditPostForm from '@/app/components/posts/EditPostForm';
 import { notFound, redirect } from 'next/navigation';
-
 import { requireAuth } from '@/app/lib/auth/requireAuth';
 import { ROLES } from '@/app/lib/definitions';
 
@@ -12,25 +17,34 @@ type Props = {
 export default async function EditPostPage({ params }: Props) {
   const { slug } = params;
 
-  // ✅ Require user and role (returns { session, user })
+  // ✅ Require login and role
   const { user } = await requireAuth({
     roles: [ROLES.USER, ROLES.MODERATOR, ROLES.ADMIN],
   });
 
-  // ✅ Load post without filtering by user
-  const post = await getPostBySlug(slug);
+  // ✅ Load post with user context
+  const post = await getPostBySlug(slug, user.id);
   if (!post) return notFound();
 
-  // ✅ Access check: owner or elevated role
+  // ✅ Allow only post owner or privileged roles
   const isOwner = post.user_id === user.id;
-  const isPrivileged = [ROLES.ADMIN, ROLES.MODERATOR].includes(user.role);
-
+  const isPrivileged = ['MODERATOR', 'ADMIN'];
   if (!isOwner && !isPrivileged) {
     redirect('/unauthorized');
   }
 
-  // ✅ Load categories
+  // ✅ Load select field data
   const categories = await getAllCategories();
+  const languages = await getAllLanguages();
+  const countries = await getAllCountries();
 
-  return <EditPostForm post={post} categories={categories} />;
+  // ✅ Render form with all props
+  return (
+    <EditPostForm
+      post={post}
+      categories={categories}
+      languages={languages}
+      countries={countries}
+    />
+  );
 }

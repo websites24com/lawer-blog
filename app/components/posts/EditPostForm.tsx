@@ -4,27 +4,24 @@ import { useState, useRef, useTransition, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { Icon } from '@iconify/react';
-
 import ImageWithFallback from '@/app/components/global/ImageWithFallback';
 import RichTextEditor from '@/app/components/global/RichTextEditor';
 import ImageCropModal from '@/app/components/posts/images/ImageCropModal';
 import ActionButton from '@/app/components/global/ActionButton';
 import TagInput from '@/app/components/posts/TagInput';
 
-import type { PostWithDetails, Category } from '@/app/lib/definitions';
+import type { PostWithDetails, Category, Language, Country, State, City } from '@/app/lib/definitions';
 
 let previewWindow: Window | null = null;
 
-type Props = {
+interface EditPostFormProps {
   post: PostWithDetails;
   categories: Category[];
-};
+  languages: Language[];
+  countries: Country[];
+}
 
-interface Country { id: number; name: string }
-interface State { id: number; name: string }
-interface City { id: number; name: string }
-
-export default function EditPostForm({ post, categories }: Props) {
+export default function EditPostForm({ post, categories, languages, countries: initialCountries }: EditPostFormProps) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -34,6 +31,7 @@ export default function EditPostForm({ post, categories }: Props) {
     excerpt: post.excerpt,
     content: post.content,
     category_id: post.category_id?.toString() || '',
+    language_id: post.language?.id?.toString() || '',
     featured_photo: post.featured_photo || '/uploads/posts/default.jpg',
     tags: post.tags?.map((t) => `#${t}`).join(' ') || '',
     country_id: post.country_id?.toString() || '',
@@ -48,39 +46,60 @@ export default function EditPostForm({ post, categories }: Props) {
   const [contentCount, setContentCount] = useState(post.content.length);
   const [isPreviewReady, setIsPreviewReady] = useState(false);
 
-  const [countries, setCountries] = useState<Country[]>([]);
   const [states, setStates] = useState<State[]>([]);
   const [cities, setCities] = useState<City[]>([]);
+  const [loadingStates, setLoadingStates] = useState(false);
+  const [loadingCities, setLoadingCities] = useState(false);
 
-  // 🌍 Load location data
-  async function fetchCountriesClient(): Promise<Country[]> {
-    const res = await fetch('/api/locations/countries');
-    const data = await res.json();
-    return data;
-  }
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.origin === window.location.origin && event.data?.type === 'ready-for-preview') {
+        setIsPreviewReady(true);
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
+
+  useEffect(() => {
+    if (isPreviewReady) sendPreviewData();
+  }, [form, isPreviewReady]);
+
+  // ✅ Load existing states and cities if country/state already selected
+  useEffect(() => {
+    const loadInitialStatesAndCities = async () => {
+      if (form.country_id) {
+        const loadedStates = await fetchStatesClient(Number(form.country_id));
+        setStates(loadedStates);
+
+        if (form.state_id) {
+          const loadedCities = await fetchCitiesClient(Number(form.state_id));
+          setCities(loadedCities);
+        }
+      }
+    };
+    loadInitialStatesAndCities();
+  }, []);
 
   async function fetchStatesClient(countryId: number): Promise<State[]> {
-    const res = await fetch(`/api/locations/states/${countryId}`);
-    const data = await res.json();
-    return data;
+    setLoadingStates(true);
+    try {
+      const res = await fetch(`/api/locations/states/${countryId}`);
+      return await res.json();
+    } finally {
+      setLoadingStates(false);
+    }
   }
 
   async function fetchCitiesClient(stateId: number): Promise<City[]> {
-    const res = await fetch(`/api/locations/cities/${stateId}`);
-    const data = await res.json();
-    return data;
+    setLoadingCities(true);
+    try {
+      const res = await fetch(`/api/locations/cities/${stateId}`);
+      return await res.json();
+    } finally {
+      setLoadingCities(false);
+    }
   }
-
-  useEffect(() => {
-    fetchCountriesClient().then(setCountries).catch(console.error);
-
-    if (form.country_id) {
-      fetchStatesClient(Number(form.country_id)).then(setStates);
-    }
-    if (form.state_id) {
-      fetchCitiesClient(Number(form.state_id)).then(setCities);
-    }
-  }, []);
 
   const handleChange = async (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -151,7 +170,7 @@ export default function EditPostForm({ post, categories }: Props) {
         toast.error('Delete failed');
       }
     } catch (err) {
-      console.error('Update failed:', err);
+      console.error('Delete error:', err);
       toast.error('Server error');
     }
   };
@@ -189,21 +208,6 @@ export default function EditPostForm({ post, categories }: Props) {
     }
   };
 
-  useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      if (event.origin === window.location.origin && event.data?.type === 'ready-for-preview') {
-        setIsPreviewReady(true);
-      }
-    };
-
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, []);
-
-  useEffect(() => {
-    if (isPreviewReady) sendPreviewData();
-  }, [form, isPreviewReady]);
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -214,12 +218,13 @@ export default function EditPostForm({ post, categories }: Props) {
         formData.append('excerpt', form.excerpt);
         formData.append('content', form.content);
         formData.append('category_id', form.category_id);
-        formData.append('featured_photo_url', form.featured_photo);
-        formData.append('old_photo', post.featured_photo || '/uploads/posts/default.jpg');
-        formData.append('tags', form.tags || '');
+        formData.append('language_id', form.language_id);
         formData.append('country_id', form.country_id);
         formData.append('state_id', form.state_id);
         formData.append('city_id', form.city_id);
+        formData.append('tags', form.tags || '');
+        formData.append('featured_photo_url', form.featured_photo);
+        formData.append('old_photo', post.featured_photo || '/uploads/posts/default.jpg');
 
         if (photoFile) {
           formData.append('featured_photo', photoFile);
@@ -291,24 +296,44 @@ export default function EditPostForm({ post, categories }: Props) {
       <label>Country</label>
       <select name="country_id" value={form.country_id} onChange={handleChange} required>
         <option value="">Select Country</option>
-        {countries.map(c => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
+        {initialCountries.map(c => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
       </select>
 
       <label>State</label>
-      <select name="state_id" value={form.state_id} onChange={handleChange} required>
-        <option value="">Select State</option>
-        {states.map(s => <option key={s.id} value={String(s.id)}>{s.name}</option>)}
-      </select>
+      {loadingStates ? (
+        <div>Loading states...</div>
+      ) : (
+        <select name="state_id" value={form.state_id} onChange={handleChange} required>
+          <option value="">Select State</option>
+          {states.map(s => (
+            <option key={s.id} value={String(s.id)}>{s.name}</option>
+          ))}
+        </select>
+      )}
 
       <label>City</label>
-      <select name="city_id" value={form.city_id} onChange={handleChange} required>
-        <option value="">Select City</option>
-        {cities.map(c => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
+      {loadingCities ? (
+        <div>Loading cities...</div>
+      ) : (
+        <select name="city_id" value={form.city_id} onChange={handleChange} required>
+          <option value="">Select City</option>
+          {cities.map(c => (
+            <option key={c.id} value={String(c.id)}>{c.name}</option>
+          ))}
+        </select>
+      )}
+
+      <label htmlFor="language_id">Language:</label>
+      <select name="language_id" value={form.language_id} onChange={handleChange} required>
+        <option value="">Select Language</option>
+        {languages.map(lang => (
+          <option key={lang.id} value={String(lang.id)}>{lang.name}</option>
+        ))}
       </select>
 
       <label htmlFor="category_id">Category:</label>
       <select name="category_id" value={form.category_id} onChange={handleChange}>
-        {categories.map((c) => (
+        {categories.map(c => (
           <option key={c.id} value={c.id}>{c.name}</option>
         ))}
       </select>

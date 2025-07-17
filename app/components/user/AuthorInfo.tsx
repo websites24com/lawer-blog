@@ -1,31 +1,22 @@
 import Link from 'next/link';
 import ImageWithFallback from '@/app/components/global/ImageWithFallback';
 import FancyDate from '@/app/components/global/date/FancyDate';
-import { Category } from '@/app/lib/definitions';
+import { AuthorInfo } from '@/app/lib/definitions';
 
-export type AuthorInfoProps = {
-  user_slug: string;
-  first_name: string;
-  last_name: string;
-  avatar_url?: string | null;
-  created_at: string | null;
-  category?: Category | null;
-  country_name?: string | null;
-  state_name?: string | null;
-  city_name?: string | null;
-};
 
-export default function AuthorInfo({
+
+export default function PostInfo({
   user_slug,
   first_name,
   last_name,
   avatar_url,
   created_at,
   category,
+  language,
   country_name,
   state_name,
   city_name,
-}: AuthorInfoProps) {
+}: AuthorInfo) {
   return (
     <div
       style={{
@@ -85,6 +76,22 @@ export default function AuthorInfo({
             }}
           >
             {category.name}
+          </Link>
+        </span>
+      )}
+
+      {/* ✅ Language */}
+      {language && (
+        <span style={{ color: '#555', fontSize: '0.95rem' }}>
+          • Language:{' '}
+          <Link
+            href={`/blog/language/${language.slug}`}
+            style={{
+              color: '#0070f3',
+              textDecoration: 'none',
+            }}
+          >
+            {language.name}
           </Link>
         </span>
       )}

@@ -8,8 +8,11 @@ import AuthorInfo from '@/app/components/user/AuthorInfo';
 import Comments from '@/app/components/comments/Comments';
 import StructuredData from '@/app/components/global/seo/StructuredData';
 
+
+
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import PostReactionsList from '@/app/components/posts/PostReactionsList';
 
 type PageProps = {
   params: {
@@ -60,16 +63,14 @@ export default async function BlogPostPage({ params }: PageProps) {
   avatar_url={post.user.avatar_url}
   created_at={post.created_at}
   category={post.category}
+  language={post.language}
   country_name={post.country_name}
   state_name={post.state_name}
   city_name={post.city_name}
 />
 
 
-      <FollowButton
-        postId={post.id}
-        initiallyFollowing={post.followed_by_current_user}
-      />
+     
 
       {post.featured_photo && (
         <div style={{ maxWidth: '100%', margin: '2rem 0' }}>
@@ -110,6 +111,12 @@ export default async function BlogPostPage({ params }: PageProps) {
     ))}
   </div>
 )}
+<FollowButton
+  postId={post.id}
+  initiallyFollowing={post.followed_by_current_user}
+/>
+
+<PostReactionsList postId={post.id} />
 
 
       {/* ✅ Inject SEO Structured Data (JSON-LD) */}
