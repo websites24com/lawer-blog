@@ -5,7 +5,7 @@ import {
   getAllCountries,
 } from '@/app/lib/posts';
 
-import EditPostForm from '@/app/components/posts/EditPostForm';
+import EditPostForm from '@/app/components/blog/posts/EditPostForm';
 import { notFound, redirect } from 'next/navigation';
 import { requireAuth } from '@/app/lib/auth/requireAuth';
 import { ROLES } from '@/app/lib/definitions';

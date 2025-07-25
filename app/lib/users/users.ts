@@ -1,5 +1,7 @@
 import { db } from '@/app/lib/db';
 import type { FullUserData, SimpleUser, Comment, PostSummary } from '@/app/lib/definitions';
+import { getBlockedUsers, getBlockedByUsers, isUserBlocked } from '@/app/lib/users/block';
+
 import type { RowDataPacket } from 'mysql2';
 
 // 🔍 Utility to get all posts from a specific user
@@ -134,6 +136,11 @@ export async function getUserWithDetails({
     [user.id]
   );
 
+ const blocked_users = await getBlockedUsers(user.id);
+const blocked_by = await getBlockedByUsers(user.id);
+
+
+
   return {
     id: user.id,
     password: user.password,
@@ -164,28 +171,104 @@ export async function getUserWithDetails({
     comments: comments as Comment[],
     followed_posts: followedPosts as PostSummary[],
     followers: followers as SimpleUser[],
+  
+
+        
   };
 }
 
 
 
 // 📋 Get all approved users (for public listing)
-export async function getAllUsers(limit: number, offset: number): Promise<SimpleUser[]> {
-  const [rows] = await db.query<RowDataPacket[]>(
-    `SELECT id, first_name, last_name, slug, avatar_url, created_at
-     FROM users
-     WHERE status = 'approved'
-     ORDER BY created_at DESC
-     LIMIT ? OFFSET ?`,
-    [limit, offset]
-  );
+export async function getAllUsers(
+  limit: number,
+  offset: number,
+  viewerId?: number
+): Promise<SimpleUser[]> {
+  let excludeIds: number[] = [];
+
+  // If viewerId is provided, fetch both users they blocked and users who blocked them
+  if (viewerId) {
+    // Users that the viewer has blocked
+    const [blockedRows] = await db.query(
+      `SELECT u.id
+       FROM blocked_users bu
+       JOIN users u ON u.id = bu.blocked_id
+       WHERE bu.blocker_id = ?`,
+      [viewerId]
+    );
+
+    // Users that have blocked the viewer
+    const [blockedByRows] = await db.query(
+      `SELECT u.id
+       FROM blocked_users bu
+       JOIN users u ON u.id = bu.blocker_id
+       WHERE bu.blocked_id = ?`,
+      [viewerId]
+    );
+
+    // Extract IDs from both result sets and merge them into a unique set
+    const blockedIds = blockedRows.map((u: any) => u.id);
+    const blockedByIds = blockedByRows.map((u: any) => u.id);
+    excludeIds = [...new Set([...blockedIds, ...blockedByIds])];
+  }
+
+  // Prepare dynamic SQL depending on whether there are users to exclude
+  const placeholders = excludeIds.map(() => '?').join(','); // e.g., "?, ?, ?"
+  const sql = `
+    SELECT id, first_name, last_name, slug, avatar_url, created_at
+    FROM users
+    WHERE status = 'approved'
+    ${excludeIds.length > 0 ? `AND id NOT IN (${placeholders})` : ''}
+    ORDER BY created_at DESC
+    LIMIT ? OFFSET ?
+  `;
+
+  // Final parameters: excluded IDs, followed by pagination controls
+  const [rows] = await db.query(sql, [...excludeIds, limit, offset]);
   return rows as SimpleUser[];
 }
 
-export async function getUsersCount(): Promise<number> {
-  const [rows] = await db.query<RowDataPacket[]>(
-    `SELECT COUNT(*) AS total FROM users WHERE status = 'approved'`
-  );
+export async function getUsersCount(viewerId?: number): Promise<number> {
+  let excludeIds: number[] = [];
+
+  // If viewerId is provided, compute users to exclude from count
+  if (viewerId) {
+    // Users blocked by the viewer
+    const [blockedRows] = await db.query(
+      `SELECT u.id
+       FROM blocked_users bu
+       JOIN users u ON u.id = bu.blocked_id
+       WHERE bu.blocker_id = ?`,
+      [viewerId]
+    );
+
+    // Users who blocked the viewer
+    const [blockedByRows] = await db.query(
+      `SELECT u.id
+       FROM blocked_users bu
+       JOIN users u ON u.id = bu.blocker_id
+       WHERE bu.blocked_id = ?`,
+      [viewerId]
+    );
+
+    // Merge both sets into a unique list of excluded IDs
+    const blockedIds = blockedRows.map((u: any) => u.id);
+    const blockedByIds = blockedByRows.map((u: any) => u.id);
+    excludeIds = [...new Set([...blockedIds, ...blockedByIds])];
+  }
+
+  // Prepare SQL depending on whether exclusions are needed
+  const placeholders = excludeIds.map(() => '?').join(',');
+  const sql = `
+    SELECT COUNT(*) AS total
+    FROM users
+    WHERE status = 'approved'
+    ${excludeIds.length > 0 ? `AND id NOT IN (${placeholders})` : ''}
+  `;
+
+  // Final query with dynamic exclusion
+  const [rows] = await db.query(sql, [...excludeIds]);
   return rows[0].total || 0;
 }
 
@@ -193,7 +276,7 @@ export async function getUsersCount(): Promise<number> {
 export async function getUserBySlug(
   slug: string,
   viewerId?: number
-): Promise<(FullUserData & { is_followed: boolean }) | null> {
+): Promise<(FullUserData & { is_followed: boolean }) | { blocked: true } | null> {
   const [firstName, lastName] = slug.trim().split('-');
 
   const [users] = await db.query<RowDataPacket[]>(
@@ -214,14 +297,10 @@ export async function getUserBySlug(
   const user = users[0];
   if (!user) return null;
 
-  let is_followed = false;
+  // ✅ BLOCK CHECK (viewer blocks or is blocked by the user)
   if (viewerId) {
-    const [rows] = await db.query<RowDataPacket[]>(
-      `SELECT 1 FROM user_followers
-       WHERE follower_id = ? AND followed_id = ? LIMIT 1`,
-      [viewerId, user.id]
-    );
-    is_followed = rows.length > 0;
+    const isBlocked = await isUserBlocked(viewerId, user.id);
+    if (isBlocked) return { blocked: true };
   }
 
   const posts = await getPostsByUserId(user.id);
@@ -257,6 +336,19 @@ export async function getUserBySlug(
     [user.id]
   );
 
+  const blocked_users = await getBlockedUsers(user.id);
+  const blocked_by = await getBlockedByUsers(user.id);
+
+  let is_followed = false;
+  if (viewerId) {
+    const [rows] = await db.query<RowDataPacket[]>(
+      `SELECT 1 FROM user_followers
+       WHERE follower_id = ? AND followed_id = ? LIMIT 1`,
+      [viewerId, user.id]
+    );
+    is_followed = rows.length > 0;
+  }
+
   return {
     id: user.id,
     password: user.password,
@@ -287,9 +379,12 @@ export async function getUserBySlug(
     comments: comments as Comment[],
     followed_posts: followedPosts as PostSummary[],
     followers: followers as SimpleUser[],
+    blocked_users,
+    blocked_by,
     is_followed,
   };
 }
+
 
 
 // 🧩 Paginated user posts
@@ -485,6 +580,36 @@ export async function getUserWithDetailsPaginated({
     [user.id]
   );
 
+  const [followingRaw] = await db.query<RowDataPacket[]>(
+  `SELECT u.id, u.first_name, u.last_name, u.avatar_url, u.created_at, u.slug, u.role
+   FROM user_followers uf
+   JOIN users u ON u.id = uf.followed_id
+   WHERE uf.follower_id = ?`,
+  [user.id]
+);
+
+// Fetch blocked users once (set of IDs for quick check)
+const blockedIds = new Set((await getBlockedUsers(user.id)).map((u) => u.id));
+
+// Now enrich each followed user with is_blocked
+const following = followingRaw.map((u) => ({
+  id: u.id,
+  first_name: u.first_name,
+  last_name: u.last_name,
+  avatar_url: u.avatar_url,
+  created_at: u.created_at,
+  slug: u.slug,
+  role: u.role,
+  is_blocked: blockedIds.has(u.id),
+}));
+
+
+  // ✅ NEW: get blocked users
+  const blocked_users = await getBlockedUsers(user.id);
+  const blocked_by = await getBlockedByUsers(user.id);
+
+  
+
   return {
     id: user.id,
     password: user.password,
@@ -516,6 +641,15 @@ city_name: user.city_name ?? null,
     comments: rootComments,
     followed_posts: followedPosts as PostSummary[],
     followers: followers as SimpleUser[],
+    following: following as SimpleUser[], // ✅ NEW LINE
+    blocked_users,
+    blocked_by,
+
     totalComments: totalCount,
   };
 }
+
+
+
+
+

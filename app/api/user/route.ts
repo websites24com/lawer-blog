@@ -1,7 +1,7 @@
 // ✅ Route for USER Page
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserWithDetailsPaginated } from '@/app/lib/users';
+import { getUserWithDetailsPaginated } from '@/app/lib/users/users';
 import { requireApiAuth } from '@/app/lib/auth/requireApiAuth';
 
 export async function GET(req: NextRequest) {
@@ -39,6 +39,7 @@ export async function GET(req: NextRequest) {
       comments: userData.comments || [],
       followed_posts: userData.followed_posts || [],
       followers: userData.followers || [],
+  
       totalComments: userData.totalComments || 0,
     };
 

@@ -2,7 +2,7 @@ import { auth } from '@/app/lib/auth/auth';
 import { getPostsByLanguageSlug } from '@/app/lib/posts';
 import type { PostSummary } from '@/app/lib/definitions';
 import ImageWithFallback from '@/app/components/global/ImageWithFallback';
-import FollowButton from '@/app/components/posts/FollowPostButton';
+import FollowButton from '@/app/components/blog/posts/FollowPostButton';
 import Pagination from '@/app/components/global/pagination/Pagination';
 import AuthorInfo from '@/app/components/user/AuthorInfo';
 import Link from 'next/link';

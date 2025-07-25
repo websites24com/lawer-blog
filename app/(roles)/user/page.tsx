@@ -7,8 +7,10 @@ import toast from 'react-hot-toast';
 import { confirmAlert } from 'react-confirm-alert';
 import 'react-confirm-alert/src/react-confirm-alert.css';
 
+import Link from 'next/link';
+
 import ImageWithFallback from '@/app/components/global/ImageWithFallback';
-import FollowPostButton from '@/app/components/posts/FollowPostButton';
+import FollowPostButton from '@/app/components/blog/posts/FollowPostButton';
 import ActionButton from '@/app/components/global/ActionButton';
 import Spinner from '@/app/components/layout/Spinner';
 import FancyDate from '@/app/components/global/date/FancyDate';
@@ -16,7 +18,6 @@ import TimeFromDate from '@/app/components/global/date/TimeFromDate';
 import RenderWebsite from '@/app/components/global/RenderWebsite';
 import RenderPhone from '@/app/components/global/RenderPhone';
 import RenderEmail from '@/app/components/global/RenderEmail';
-import { unfollowPost } from '@/app/actions/posts';
 import { formatOrDash } from '@/app/utils/formatOrDash';
 
 import CommentEditForm from '@/app/components/comments/CommentEditForm';
@@ -25,67 +26,31 @@ import CommentsPagination from '@/app/components/comments/CommentsPagination';
 import PaginatedList from '@/app/components/global/pagination/PaginatedList';
 
 import { useCurrentUser } from '@/app/hooks/useCurrentUser';
+import FollowUserButton from '@/app/components/user/FollowUserButton';
+import BlockUserButton from '@/app/components/user/BlockUserButton';
 
 export default function UserPage() {
-  // ⬇️ Destructure all returned values from your custom hook
   const { userData, loading, error, resolved, status, refetch } = useCurrentUser();
-
-  // ⬇️ Next.js App Router hook for navigation
   const router = useRouter();
-
-  // ⬇️ Track UI transitions (used during async operations)
   const [isPending, startTransition] = useTransition();
-
-  // ⬇️ Track which comment is currently being edited (null = none)
   const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
-
-  // ⬇️ Current page for paginating comments
   const [commentPage, setCommentPage] = useState(1);
-
-  // ⬇️ Fixed number of comments per page
   const commentsPerPage = 5;
 
-  // ⬇️ This effect runs once loading is resolved
-  // If we finished loading and still don't have userData, it means user is not authenticated
-  // In that case, we redirect to the login page — but only inside useEffect (not during render)
   useEffect(() => {
     if (!loading && resolved && !userData) {
       router.push('/login');
     }
   }, [loading, resolved, userData, router]);
 
-  // ⬇️ While session or data is loading, show spinner
-  // This prevents flicker or null data usage before the hook finishes
   if (status === 'loading' || loading || !resolved) return <Spinner />;
-
-  // ⬇️ After loading is resolved: if userData is still missing, we don't render anything.
-  // router.push('/login') already ran above in useEffect.
   if (!userData) return null;
 
-  // ⬇️ Ensure we always display a correct and safe avatar URL
-  // If avatar is an external link or starts with known folder, use as-is
-  // Otherwise, prepend the /uploads/avatars/ path to make it a valid URL
   const resolvedAvatarUrl =
     userData.avatar_url?.startsWith('http') || userData.avatar_url?.startsWith('/uploads/avatars/')
       ? userData.avatar_url
       : `/uploads/avatars/${userData.avatar_url}`;
 
-  // ⬇️ Handle unfollowing a post
-  // Wrapped in startTransition to signal React this is an async state update
-  const handleUnfollow = async (postId: number) => {
-    startTransition(async () => {
-      try {
-        await unfollowPost(postId); // Send request to unfollow
-        toast.success('Post unfollowed'); // Notify user
-        await refetch(); // Refresh user data
-      } catch {
-        toast.error('Failed to unfollow post'); // Show error toast if anything fails
-      }
-    });
-  };
-
-  // ⬇️ Handle post deletion with confirmation modal
-  // Uses react-confirm-alert to prompt user before executing
   const handleDeletePost = (postId: number) => {
     confirmAlert({
       title: 'Confirm Deletion',
@@ -99,27 +64,27 @@ export default function UserPage() {
                 const res = await fetch(`/api/user/posts/delete/${postId}`, {
                   method: 'DELETE',
                 });
-                if (!res.ok) throw new Error(); // If backend didn't return 200 OK, throw
-                toast.success('Post deleted'); // Notify success
-                await refetch(); // Refresh user data
+                if (!res.ok) throw new Error();
+                toast.success('Post deleted');
+                await refetch();
               } catch {
-                toast.error('Failed to delete post'); // Notify error
+                toast.error('Failed to delete post');
               }
             });
           },
         },
-        { label: 'No' }, // No-op if user cancels
+        { label: 'No' },
       ],
     });
   };
-
-
 
   const totalPages = Math.ceil(userData.comments.length / commentsPerPage);
   const paginatedComments = userData.comments.slice(
     (commentPage - 1) * commentsPerPage,
     commentPage * commentsPerPage
   );
+
+  const followedPosts = userData.followed_posts;
 
   return (
     <div className="user-profile-container">
@@ -170,10 +135,7 @@ export default function UserPage() {
             items={userData.posts}
             noItemsMessage="You haven’t published any posts."
             renderItem={(post) => (
-              <li
-                key={post.id}
-                style={{ marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid #ccc' }}
-              >
+              <li key={post.id} style={{ marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid #ccc' }}>
                 <div style={{ maxWidth: '300px', marginBottom: '0.5rem' }}>
                   <ImageWithFallback
                     src={post.featured_photo || '/uploads/posts/default.jpg'}
@@ -199,9 +161,9 @@ export default function UserPage() {
 
       <div className="user-section">
         <h2>⭐ Followed Posts</h2>
-        {userData.followed_posts?.length > 0 ? (
+        {followedPosts?.length > 0 ? (
           <PaginatedList
-            items={userData.followed_posts}
+            items={followedPosts}
             noItemsMessage="You haven’t followed any posts yet."
             renderItem={(post) => (
               <li key={post.id}>
@@ -214,8 +176,11 @@ export default function UserPage() {
                     imageType="post"
                   />
                 </div>
-                <a href={`/blog/${post.slug}`} target="_blank" rel="noopener noreferrer">{post.title}</a>
-                <FollowPostButton postId={post.id} initiallyFollowing={true} onUnfollow={() => handleUnfollow(post.id)} />
+                <Link href={`/blog/${post.slug}`}>{post.title}</Link>
+                <FollowPostButton
+                  postId={post.id}
+                  initiallyFollowing={true}
+                  onUnfollow={refetch} />
               </li>
             )}
           />
@@ -224,90 +189,223 @@ export default function UserPage() {
         )}
       </div>
 
-      <div className="user-section">
-        <h2>🗨️ My Comments</h2>
-        {userData.comments.length > 0 ? (
-          <>
-            <ul style={{ listStyle: 'none', padding: 0 }}>
-              {paginatedComments.map((comment) => {
-                const isEditing = editingCommentId === comment.id;
-                return (
-                  <li key={comment.id} style={{ marginBottom: '1.5rem', borderBottom: '1px solid #ddd', paddingBottom: '1rem' }}>
-                    <p style={{ marginBottom: '0.5rem' }}>
-                      <strong>{comment.name}</strong> — <FancyDate dateString={comment.created_at} />
-                    </p>
-                    {isEditing ? (
-                      <CommentEditForm
-                        commentId={comment.id}
-                        initialContent={comment.message}
-                        onCancel={() => setEditingCommentId(null)}
-                        onSuccess={refetch}
-                      />
-                    ) : (
-                      <>
-                        <p style={{ whiteSpace: 'pre-wrap' }}>{comment.message}</p>
-                        {comment.post_slug && (
-                          <p style={{ marginTop: '0.25rem', fontStyle: 'italic' }}>
-                            Comment on: <a href={`/blog/${comment.post_slug}`} target="_blank" rel="noopener noreferrer">🔗 {comment.post_title}</a>
-                          </p>
-                        )}
-                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                          <ActionButton onClick={() => setEditingCommentId(comment.id)}>✏️ Edit</ActionButton>
-                          <CommentDeleteButton commentId={comment.id} onDeleted={refetch} />
-                          {comment.post_slug && (
-                            <ActionButton onClick={() => window.open(`/blog/${comment.post_slug}`, '_blank')}>
-                              👁️ View Post
-                            </ActionButton>
-                          )}
-                        </div>
-                      </>
+     <div className="user-section">
+  <h2>🗨️ My Comments</h2>
+
+  {userData.comments?.length > 0 ? (() => {
+    // Filter out comments from users you blocked
+    const visibleComments = userData.comments.filter(
+      (comment) => !userData.blocked_users.some((b) => b.id === comment.user_id)
+    );
+
+    if (visibleComments.length === 0) {
+      return <p>All your comments are hidden because they are on posts by users you've blocked.</p>;
+    }
+
+    const totalPages = Math.ceil(visibleComments.length / commentsPerPage);
+    const paginatedComments = visibleComments.slice(
+      (commentPage - 1) * commentsPerPage,
+      commentPage * commentsPerPage
+    );
+
+    return (
+      <>
+        <ul style={{ listStyle: 'none', padding: 0 }}>
+          {paginatedComments.map((comment) => {
+            const isEditing = editingCommentId === comment.id;
+            return (
+              <li key={comment.id} style={{ marginBottom: '1.5rem', borderBottom: '1px solid #ddd', paddingBottom: '1rem' }}>
+                <p style={{ marginBottom: '0.5rem' }}>
+                  <strong>{comment.name}</strong> — <FancyDate dateString={comment.created_at} />
+                </p>
+                {isEditing ? (
+                  <CommentEditForm
+                    commentId={comment.id}
+                    initialContent={comment.message}
+                    onCancel={() => setEditingCommentId(null)}
+                    onSuccess={refetch}
+                  />
+                ) : (
+                  <>
+                    <p style={{ whiteSpace: 'pre-wrap' }}>{comment.message}</p>
+                    {comment.post_slug && (
+                      <p style={{ marginTop: '0.25rem', fontStyle: 'italic' }}>
+                        Comment on: <Link href={`/blog/${comment.post_slug}`}>🔗 {comment.post_title}</Link>
+                      </p>
                     )}
-                  </li>
-                );
-              })}
-            </ul>
-            <CommentsPagination
-              currentPage={commentPage}
-              totalPages={totalPages}
-              onPageChange={setCommentPage}
-            />
-          </>
-        ) : (
-          <p>You haven’t posted any comments yet.</p>
-        )}
-      </div>
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <ActionButton onClick={() => setEditingCommentId(comment.id)}>✏️ Edit</ActionButton>
+                      <CommentDeleteButton commentId={comment.id} onDeleted={refetch} />
+                      {comment.post_slug && (
+                        <ActionButton onClick={() => window.open(`/blog/${comment.post_slug}`, '_blank')}>
+                          👁️ View Post
+                        </ActionButton>
+                      )}
+                    </div>
+                  </>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+        <CommentsPagination
+          currentPage={commentPage}
+          totalPages={totalPages}
+          onPageChange={setCommentPage}
+        />
+      </>
+    );
+  })() : (
+    <p>You haven’t posted any comments yet.</p>
+  )}
+</div>
+
 
       <div className="user-section">
-        <h2>👥 Followers</h2>
-        {userData.followers?.length > 0 ? (
-          <PaginatedList
-            items={userData.followers}
-            noItemsMessage="No followers yet."
-            renderItem={(follower) => {
-              const avatar =
-                follower.avatar_url?.startsWith('http') || follower.avatar_url?.startsWith('/uploads/avatars/')
-                  ? follower.avatar_url
-                  : `/uploads/avatars/${follower.avatar_url}`;
-              return (
-                <li key={follower.id}>
-                  <div className="image-wrapper-avatar">
-                    <ImageWithFallback
-                      src={avatar || '/uploads/avatars/default.jpg'}
-                      alt={`${follower.first_name} ${follower.last_name}`}
-                      className="fallback-image-avatar"
-                      wrapperClassName="image-wrapper-avatar"
-                      imageType="avatar"
-                    />
-                  </div>
-                  <a href={`/users/${follower.slug}`}>{follower.first_name} {follower.last_name}</a>
-                </li>
-              );
-            }}
-          />
-        ) : (
-          <p>No followers yet.</p>
-        )}
-      </div>
+  <h2>📌 Following</h2>
+  {userData.following?.filter((u) => !userData.blocked_users.some((b) => b.id === u.id)).length > 0 ? (
+    <PaginatedList
+      items={userData.following.filter((u) => !userData.blocked_users.some((b) => b.id === u.id))}
+      noItemsMessage="You’re not following any users yet."
+      renderItem={(followedUser) => {
+        const avatar =
+          followedUser.avatar_url?.startsWith('http') || followedUser.avatar_url?.startsWith('/uploads/avatars/')
+            ? followedUser.avatar_url
+            : `/uploads/avatars/${followedUser.avatar_url}`;
+        return (
+          <li key={followedUser.id} style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div className="image-wrapper-avatar">
+              <ImageWithFallback
+                src={avatar || '/uploads/avatars/default.jpg'}
+                alt={`${followedUser.first_name} ${followedUser.last_name}`}
+                className="fallback-image-avatar"
+                wrapperClassName="image-wrapper-avatar"
+                imageType="avatar"
+              />
+            </div>
+            <div>
+              <Link href={`/users/${followedUser.slug}`}>
+                {followedUser.first_name} {followedUser.last_name}
+              </Link>
+              <div style={{ marginTop: '0.25rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <FollowUserButton
+                  followedId={followedUser.id}
+                  initiallyFollowing={true}
+                  onUnfollow={refetch}
+                />
+                <BlockUserButton
+                  blockedId={followedUser.id}
+                  initiallyBlocked={followedUser.is_blocked ?? false}
+                  onToggle={refetch}
+                  refresh={true}
+                />
+              </div>
+            </div>
+          </li>
+        );
+      }}
+    />
+  ) : (
+    <p>You’re not following any users yet.</p>
+  )}
+</div>
+
+
+<div className="user-section">
+  <h2>👥 Followers</h2>
+  {userData.followers?.filter((u) => !userData.blocked_users.some((b) => b.id === u.id)).length > 0 ? (
+    <PaginatedList
+      items={userData.followers.filter((u) => !userData.blocked_users.some((b) => b.id === u.id))}
+      noItemsMessage="No followers yet."
+      renderItem={(follower) => {
+        const avatar =
+          follower.avatar_url?.startsWith('http') || follower.avatar_url?.startsWith('/uploads/avatars/')
+            ? follower.avatar_url
+            : `/uploads/avatars/${follower.avatar_url}`;
+        return (
+          <li key={follower.id} style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div className="image-wrapper-avatar">
+              <ImageWithFallback
+                src={avatar || '/uploads/avatars/default.jpg'}
+                alt={`${follower.first_name} ${follower.last_name}`}
+                className="fallback-image-avatar"
+                wrapperClassName="image-wrapper-avatar"
+                imageType="avatar"
+              />
+            </div>
+            <div>
+              <Link href={`/users/${follower.slug}`}>
+                {follower.first_name} {follower.last_name}
+              </Link>
+              <div style={{ marginTop: '0.25rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <FollowUserButton
+                  followedId={follower.id}
+                  initiallyFollowing={follower.is_followed ?? false}
+                  onUnfollow={refetch}
+                />
+                <BlockUserButton
+                  blockedId={follower.id}
+                  initiallyBlocked={follower.is_blocked ?? false}
+                  onToggle={refetch}
+                  refresh={true}
+                />
+              </div>
+            </div>
+          </li>
+        );
+      }}
+    />
+  ) : (
+    <p>No followers yet.</p>
+  )}
+</div>
+
+<div className="user-section">
+  <h2>🚫 Blocked Users</h2>
+  {userData.blocked_users?.length > 0 ? (
+    <PaginatedList
+      items={userData.blocked_users}
+      noItemsMessage="You haven’t blocked anyone yet."
+      renderItem={(blockedUser) => {
+        const avatar =
+          blockedUser.avatar_url?.startsWith('http') || blockedUser.avatar_url?.startsWith('/uploads/avatars/')
+            ? blockedUser.avatar_url
+            : `/uploads/avatars/${blockedUser.avatar_url}`;
+
+        return (
+          <li key={blockedUser.id} style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div className="image-wrapper-avatar">
+              <ImageWithFallback
+                src={avatar || '/uploads/avatars/default.jpg'}
+                alt={`${blockedUser.first_name} ${blockedUser.last_name}`}
+                className="fallback-image-avatar"
+                wrapperClassName="image-wrapper-avatar"
+                imageType="avatar"
+              />
+            </div>
+            <div>
+              <Link href={`/users/${blockedUser.slug}`}>
+                {blockedUser.first_name} {blockedUser.last_name}
+              </Link>
+              <div style={{ marginTop: '0.25rem' }}>
+                <BlockUserButton
+                  blockedId={blockedUser.id}
+                  initiallyBlocked={true}
+                  refresh={true}
+                  onToggle={refetch}
+                />
+              </div>
+            </div>
+          </li>
+        );
+      }}
+    />
+  ) : (
+    <p>You haven’t blocked anyone yet.</p>
+  )}
+</div>
+
+
 
       <div className="user-section" style={{ marginTop: '2rem' }}>
         <button onClick={() => signOut({ callbackUrl: '/' })}>🔒 Log Out</button>

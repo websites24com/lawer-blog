@@ -5,8 +5,8 @@ import { useRouter } from 'next/navigation';
 import ActionButton from '@/app/components/global/ActionButton';
 import ImageWithFallback from '@/app/components/global/ImageWithFallback';
 import RichTextEditor from '@/app/components/global/RichTextEditor';
-import ImageCropModal from '@/app/components/posts/images/ImageCropModal';
-import TagInput from '@/app/components/posts/TagInput'; // ✅ NEW
+import ImageCropModal from '@/app/components/blog/posts/images/ImageCropModal';
+import TagInput from '@/app/components/blog/posts/TagInput'; // ✅ NEW
 import { Icon } from '@iconify/react';
 import type { Category, Language, Country, State, City } from '@/app/lib/definitions'; 
 

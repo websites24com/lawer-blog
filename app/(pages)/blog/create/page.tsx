@@ -1,5 +1,5 @@
 import { db } from '@/app/lib/db';
-import CreatePostForm from '@/app/components/posts/CreatePostForm';
+import CreatePostForm from '@/app/components/blog/posts/CreatePostForm';
 import { requireAuth } from '@/app/lib/auth/requireAuth';
 import type { Category, Language, Country } from '@/app/lib/definitions';
 

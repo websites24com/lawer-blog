@@ -7,7 +7,7 @@ import Link from 'next/link';
 import ImageWithFallback from '@/app/components/global/ImageWithFallback';
 import TimeFromDate from '@/app/components/global/date/TimeFromDate';
 import ActionButton from '@/app/components/global/ActionButton';
-import FollowUserButton from '../user/FollowUserButton';
+import FollowUserButton from '../../user/FollowUserButton';
 import SimpleMessageDialog from '@/app/components/global/SimpleMessageDialog';
 
 import { fetchPostReactions, handlePostReaction } from '@/app/actions/reactions';
@@ -65,7 +65,7 @@ export default function PostReactionsList({ postId }: PostReactionsListProps) {
       const success = await handlePostReaction(postId, reaction);
       if (success) await loadReactions();
     } catch (err) {
-      console.error('❌ Reaction failed:', err);
+      console.error('Reaction failed:', err);
     } finally {
       setSubmitting(false);
     }
@@ -73,7 +73,6 @@ export default function PostReactionsList({ postId }: PostReactionsListProps) {
 
   return (
     <div className="reactions-list">
-      {/* ✅ Reaction buttons */}
       <div className="reaction-submit-bar">
         <p className="reaction-submit-title">React to this post:</p>
         <div className="reaction-summary">
@@ -92,7 +91,6 @@ export default function PostReactionsList({ postId }: PostReactionsListProps) {
         </div>
       </div>
 
-      {/* ✅ Summary */}
       <div className="reaction-summary">
         {Object.entries(grouped).length > 0 ? (
           Object.entries(grouped).map(([type, users]) => (
@@ -111,14 +109,17 @@ export default function PostReactionsList({ postId }: PostReactionsListProps) {
         )}
       </div>
 
-      {/* ✅ Expanded user list popup */}
       {expandedReaction && grouped[expandedReaction] && (
         <div className="reaction-popup">
           <div className="reaction-popup-header">
             <h4>
               {emojiReactions[expandedReaction]} {expandedReaction.toUpperCase()} ({grouped[expandedReaction].length})
             </h4>
-            <button className="reaction-popup-close" type="button" onClick={() => setExpandedReaction(null)}>
+            <button
+              className="reaction-popup-close"
+              type="button"
+              onClick={() => setExpandedReaction(null)}
+            >
               ✖
             </button>
           </div>
@@ -127,24 +128,34 @@ export default function PostReactionsList({ postId }: PostReactionsListProps) {
               {grouped[expandedReaction].map((user) => {
                 const isCurrentUser = user.user_id === session?.user?.id;
                 const userName = `${user.first_name} ${user.last_name}`;
+
                 return (
                   <li key={user.user_id} className="reaction-user">
-                    <ImageWithFallback
-                      src={user.avatar_url || ''}
-                      fallbackSrc="/uploads/avatars/default.jpg"
-                      imageType="avatar"
-                      alt={userName}
-                    />
+                    <Link
+                      href={`/users/${user.user_slug}`}
+                      style={{ textDecoration: 'none' }}
+                    >
+                      <div
+                        style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '50%',
+                          overflow: 'hidden',
+                          flexShrink: 0,
+                        }}
+                      >
+                        <ImageWithFallback
+                          src={user.avatar_url || '/uploads/avatars/default.jpg'}
+                          alt={userName}
+                          imageType="avatar"
+                          className="fallback-image-avatar"
+                          wrapperClassName="image-wrapper-avatar"
+                        />
+                      </div>
+                    </Link>
 
                     <div className="reaction-meta">
-                      {user.user_slug ? (
-                        <Link href={`/users/${user.user_slug}`} className="reaction-user-link">
-                          <strong>{userName}{isCurrentUser && ' (You)'}</strong>
-                        </Link>
-                      ) : (
-                        <strong>{userName}{isCurrentUser && ' (You)'}</strong>
-                      )}
-
+                      <strong>{userName}{isCurrentUser && ' (You)'}</strong>
                       <TimeFromDate date={user.created_at} />
                     </div>
 
@@ -162,7 +173,6 @@ export default function PostReactionsList({ postId }: PostReactionsListProps) {
         </div>
       )}
 
-      {/* ✅ Login warning */}
       <SimpleMessageDialog
         open={showLoginDialog}
         onClose={() => setShowLoginDialog(false)}

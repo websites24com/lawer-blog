@@ -6,9 +6,9 @@ import toast from 'react-hot-toast';
 import { Icon } from '@iconify/react';
 import ImageWithFallback from '@/app/components/global/ImageWithFallback';
 import RichTextEditor from '@/app/components/global/RichTextEditor';
-import ImageCropModal from '@/app/components/posts/images/ImageCropModal';
+import ImageCropModal from '@/app/components/blog/posts/images/ImageCropModal';
 import ActionButton from '@/app/components/global/ActionButton';
-import TagInput from '@/app/components/posts/TagInput';
+import TagInput from '@/app/components/blog/posts/TagInput';
 
 import type { PostWithDetails, Category, Language, Country, State, City } from '@/app/lib/definitions';
 

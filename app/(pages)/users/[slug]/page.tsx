@@ -6,7 +6,10 @@ import RenderPhone from '@/app/components/global/RenderPhone';
 import RenderEmail from '@/app/components/global/RenderEmail';
 import RenderWebsite from '@/app/components/global/RenderWebsite';
 import FollowUserButton from '@/app/components/user/FollowUserButton';
-import { getUserBySlug } from '@/app/lib/users';
+import BlockUserButton from '@/app/components/user/BlockUserButton';
+import BlockedProfileNotice from '@/app/components/user/BlockProfileNotice';
+
+import { getUserBySlug } from '@/app/lib/users/users';
 import { auth } from '@/app/lib/auth/auth';
 import { formatOrDash } from '@/app/utils/formatOrDash';
 import type { FullUserData } from '@/app/lib/definitions';
@@ -17,19 +20,22 @@ type Props = {
   };
 };
 
+type PageUser = FullUserData & { is_followed: boolean } | { blocked: true };
+
 export default async function IndividualUserPage({ params }: Props) {
   const { slug } = params;
 
   const session = await auth();
   const viewerId = session?.user?.id || 0;
 
-  const userData: FullUserData | null = await getUserBySlug(slug, viewerId);
-  if (!userData) return notFound();
+  const userResult: PageUser | null = await getUserBySlug(slug, viewerId);
 
-  console.log('USER DATA', userData);
+  if (!userResult) return notFound();
+  if ('blocked' in userResult) return <BlockedProfileNotice />;
 
-
+  const userData = userResult;
   const isCurrentUser = userData.id === viewerId;
+  const isBlocked = userData.blocked_users.some((u) => u.id === viewerId);
 
   return (
     <div className="user-profile-container" style={{ padding: '2rem' }}>
@@ -50,8 +56,16 @@ export default async function IndividualUserPage({ params }: Props) {
         </p>
 
         {!isCurrentUser && (
-          <div style={{ marginTop: '1rem' }}>
-            <FollowUserButton followedId={userData.id} initiallyFollowing={userData.is_followed} />
+          <div style={{ marginTop: '1rem', display: 'flex', gap: '1rem' }}>
+            <FollowUserButton
+              followedId={userData.id}
+              initiallyFollowing={userData.is_followed}
+            />
+            <BlockUserButton
+              blockedId={userData.id}
+              initiallyBlocked={isBlocked}
+              refresh={true}
+            />
           </div>
         )}
       </div>
@@ -65,10 +79,7 @@ export default async function IndividualUserPage({ params }: Props) {
         <p><strong>Website:</strong> <RenderWebsite url={userData.website} /></p>
         <p><strong>About Me:</strong> {formatOrDash(userData.about_me)}</p>
         <p><strong>Provider:</strong> {formatOrDash(userData.provider)}</p>
-        
- <p><strong>Account ID:</strong> {userData.provider_account_id ?? `#${userData.id}`}</p>
-
-
+        <p><strong>Account ID:</strong> {userData.provider_account_id ?? `#${userData.id}`}</p>
         <p><strong>Role:</strong> {formatOrDash(userData.role)}</p>
         <p><strong>Status:</strong> {formatOrDash(userData.status)}</p>
         <p><strong>Created At:</strong> <FancyDate dateString={userData.created_at} /></p>

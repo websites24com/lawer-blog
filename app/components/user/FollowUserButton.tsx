@@ -1,57 +1,99 @@
-// File: app/components/FollowUserButton.tsx
-
+// This component runs on the client side
 'use client';
 
+// Import necessary React hooks
 import { useState, useEffect, useTransition } from 'react';
-import { useSession } from 'next-auth/react';
-import { followUser, unfollowUser } from '@/app/actions/user'; // ✅ server actions
-import ActionButton from '@/app/components/global/ActionButton'; // ✅ Reusable button component
 
+// Import session to get current user info
+import { useSession } from 'next-auth/react';
+
+// Import router to redirect or refresh the page
+import { useRouter } from 'next/navigation';
+
+// Import server actions for following and unfollowing users
+import { followUser, unfollowUser } from '@/app/actions/user/user';
+
+// Import reusable action button
+import ActionButton from '@/app/components/global/ActionButton';
+
+// Define the props expected by this component
 type Props = {
-  followedId: number;           // ID of the user to follow/unfollow
-  initiallyFollowing: boolean; // Whether the current user is already following this user
+  followedId: number;
+  initiallyFollowing: boolean;
+  onToggle?: (newState: boolean) => void;
   onFollow?: () => void;
   onUnfollow?: () => void;
+  refresh?: boolean;
 };
 
-export default function FollowUserButton({ followedId, initiallyFollowing }: Props) {
-  const { data: session, status } = useSession(); // ✅ Get current user session
-  const [isFollowing, setIsFollowing] = useState(initiallyFollowing); // ✅ Local UI state
-  const [isPending, startTransition] = useTransition(); // ✅ React 18 transition state
+// Define the FollowUserButton component
+export default function FollowUserButton({
+  followedId,
+  initiallyFollowing,
+  onToggle,
+  onFollow,
+  onUnfollow,
+  refresh = false,
+}: Props) {
+  // Get the current user session
+  const { data: session, status } = useSession();
 
-  // ✅ Ensure state sync if initiallyFollowing changes (e.g. after soft navigation)
+  // Get router instance
+  const router = useRouter();
+
+  // Track whether the user is currently followed
+  const [isFollowing, setIsFollowing] = useState(initiallyFollowing);
+
+  // Track whether a transition is pending
+  const [isPending, startTransition] = useTransition();
+
+  // Update internal state when prop changes
   useEffect(() => {
     setIsFollowing(initiallyFollowing);
   }, [initiallyFollowing]);
 
+  // Toggle follow or unfollow action
   const toggleFollow = () => {
-    if (status !== 'authenticated' || !session?.user?.id) return;
+    // If user is not authenticated, redirect to login
+    if (status !== 'authenticated' || !session?.user?.id) {
+      router.push('/login');
+      return;
+    }
 
+    // Run follow/unfollow logic in a transition
     startTransition(async () => {
       try {
+        // If already following — unfollow
         if (isFollowing) {
-          // ✅ Call server action to unfollow user
           await unfollowUser(followedId, session.user.id);
-        } else {
-          // ✅ Call server action to follow user
+          setIsFollowing(false);
+          if (onUnfollow) onUnfollow();
+          if (onToggle) onToggle(false);
+        } 
+        // If not following — follow
+        else {
           await followUser(followedId, session.user.id);
+          setIsFollowing(true);
+          if (onFollow) onFollow();
+          if (onToggle) onToggle(true);
         }
 
-        // ✅ Update local UI state instantly
-        setIsFollowing(!isFollowing);
-
-        // ❗Note: Server revalidation is handled in backend or can be triggered with router.refresh() if needed
+        // If refresh flag is set — trigger router refresh
+        if (refresh) {
+          router.refresh();
+        }
       } catch (err) {
         console.error('❌ Follow/unfollow failed:', err);
       }
     });
   };
 
+  // Render the action button
   return (
     <ActionButton
       onClick={toggleFollow}
-      loading={isPending} // ✅ Show spinner if action is pending
-      active={isFollowing} // ✅ Highlight button if currently following
+      loading={isPending}
+      active={isFollowing}
       title={isFollowing ? 'Unfollow this user' : 'Follow this user'}
     >
       {isFollowing ? '★ Unfollow' : '☆ Follow'}

@@ -1,7 +1,7 @@
 import { auth } from '@/app/lib/auth/auth';
 import { getAllApprovedPosts, getApprovedPostCount } from '@/app/lib/posts';
 import type { PostSummary } from '@/app/lib/definitions';
-import FollowButton from '@/app/components/posts/FollowPostButton';
+import FollowButton from '@/app/components/blog/posts/FollowPostButton';
 import ImageWithFallback from '@/app/components/global/ImageWithFallback';
 
 import Pagination from '@/app/components/global/pagination/Pagination';

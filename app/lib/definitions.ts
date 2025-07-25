@@ -98,6 +98,16 @@ export type SimpleUser = {
   last_name: string;
   slug: string;
   avatar_url: string | null;
+  is_followed?: boolean; 
+  is_blocked?: boolean; 
+};
+
+// ---------- BLOCKED USERS ---------- ✅ new block
+
+export type BlockedUser = {
+  blocker_id: number;
+  blocked_id: number;
+  created_at: string;
 };
 
 export type FullUserData = UserRow & {
@@ -108,7 +118,13 @@ export type FullUserData = UserRow & {
   comments: Comment[];
   followed_posts: PostSummary[];
   followers: SimpleUser[];
+  following: SimpleUser[];
+  blocked_users: SimpleUser[]; // ✅ add this line
+  blocked_by: SimpleUser[]; // ✅ optionally add this if you want both directions
 };
+
+
+
 
 // ---------- POST TYPES ----------
 export type PostSummary = {

@@ -1,18 +1,24 @@
-import { getAllUsers, getUsersCount } from '@/app/lib/users';
+import { getAllUsers, getUsersCount } from '@/app/lib/users/users';
+import { auth } from '@/app/lib/auth/auth';
 import ImageWithFallback from '@/app/components/global/ImageWithFallback';
-import Pagination from '@/app/components/global/pagination/Pagination'; // ✅ Styled pagination
+import Pagination from '@/app/components/global/pagination/Pagination';
 import Link from 'next/link';
 
 const USERS_PER_PAGE = 3;
 
 export default async function UsersPage({ searchParams }: { searchParams?: { page?: string } }) {
+  // 🔐 Get current session user
+  const session = await auth();
+  const viewerId = session?.user?.id || undefined;
+
   const currentPage = parseInt(searchParams?.page || '1', 10);
   const limit = USERS_PER_PAGE;
   const offset = (currentPage - 1) * limit;
 
+  // 📦 Fetch filtered users and total count
   const [users, totalUsers] = await Promise.all([
-    getAllUsers(limit, offset),
-    getUsersCount(),
+    getAllUsers(limit, offset, viewerId),
+    getUsersCount(viewerId),
   ]);
 
   const totalPages = Math.ceil(totalUsers / limit);
@@ -28,7 +34,12 @@ export default async function UsersPage({ searchParams }: { searchParams?: { pag
           <li key={user.id} style={{ marginBottom: '1.5rem' }}>
             <Link
               href={`/users/${user.slug}`}
-              style={{ display: 'flex', alignItems: 'center', textDecoration: 'none', color: '#333' }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                textDecoration: 'none',
+                color: '#333',
+              }}
             >
               <div
                 style={{
@@ -55,7 +66,6 @@ export default async function UsersPage({ searchParams }: { searchParams?: { pag
         ))}
       </ul>
 
-      {/* ✅ Styled pagination block only */}
       <Pagination
         currentPage={currentPage}
         totalPages={totalPages}

@@ -513,6 +513,16 @@ async function seed() {
       FOREIGN KEY (followed_id) REFERENCES users(id) ON DELETE CASCADE
     );
 
+      CREATE TABLE blocked_users (
+      blocker_id INT NOT NULL,
+      blocked_id INT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (blocker_id, blocked_id),
+      FOREIGN KEY (blocker_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (blocked_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+
     CREATE TABLE categories (
       id INT AUTO_INCREMENT PRIMARY KEY,
       name VARCHAR(100) NOT NULL,

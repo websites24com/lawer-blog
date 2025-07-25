@@ -1,18 +1,15 @@
-export const revalidate = 60; // ✅ Enable ISR (Incremental Static Regeneration)
+// export const revalidate = 60; // ✅ Enable ISR (Incremental Static Regeneration)
 
 import { getPostBySlug } from '@/app/lib/posts';
 import { auth } from '@/app/lib/auth/auth';
 import ImageWithFallback from '@/app/components/global/ImageWithFallback';
-import FollowButton from '@/app/components/posts/FollowPostButton';
+import FollowButton from '@/app/components/blog/posts/FollowPostButton';
 import AuthorInfo from '@/app/components/user/AuthorInfo';
 import Comments from '@/app/components/comments/Comments';
 import StructuredData from '@/app/components/global/seo/StructuredData';
-
-
-
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import PostReactionsList from '@/app/components/posts/PostReactionsList';
+import PostReactionsList from '@/app/components/blog/posts/PostReactionsList';
 
 type PageProps = {
   params: {
@@ -113,6 +110,7 @@ export default async function BlogPostPage({ params }: PageProps) {
 )}
 <FollowButton
   postId={post.id}
+   
   initiallyFollowing={post.followed_by_current_user}
 />
 

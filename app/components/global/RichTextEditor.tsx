@@ -18,8 +18,8 @@ import TableCell from '@tiptap/extension-table-cell';
 import TableHeader from '@tiptap/extension-table-header';
 import Typography from '@tiptap/extension-typography';
 import { useEffect, useRef, useState } from 'react';
-import ImageCropModal from '@/app/components/posts/images/ImageCropModal';
-import ImageMetaModal from '@/app/components/posts/images/ImageMetaModal';
+import ImageCropModal from '@/app/components/blog/posts/images/ImageCropModal';
+import ImageMetaModal from '@/app/components/blog/posts/images/ImageMetaModal';
 
 type Props = {
   value: string;
