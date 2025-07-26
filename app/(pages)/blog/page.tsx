@@ -31,7 +31,8 @@ export default async function BlogPage({
   const pageSize = 3;
 
   const posts: PostSummary[] = await getAllApprovedPosts(userId, currentPage, pageSize);
-  const totalPosts = await getApprovedPostCount();
+  const totalPosts = await getApprovedPostCount(userId); // ✅ Pass viewerId
+
   const totalPages = Math.ceil(totalPosts / pageSize);
 
   return (
@@ -76,6 +77,7 @@ export default async function BlogPage({
               avatar_url={post.user.avatar_url}
               created_at={post.created_at}
               category={post.category}
+             language={post.language}
               country_name={post.country_name}
               state_name={post.state_name}
               city_name={post.city_name}

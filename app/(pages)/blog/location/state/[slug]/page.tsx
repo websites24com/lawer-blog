@@ -7,6 +7,7 @@ import Pagination from '@/app/components/global/pagination/Pagination';
 import AuthorInfo from '@/app/components/user/AuthorInfo';
 import Link from 'next/link';
 import { capitalizeFirstLetter } from '@/app/utils/capitalizeFirstLetter';
+import BlockedProfileNotice from '@/app/components/user/BlockProfileNotice'; // ✅ FIXED
 
 function stripHtml(html: string): string {
   return html.replace(/<[^>]*>?/gm, '');
@@ -23,8 +24,18 @@ export default async function StatePage({ params, searchParams }: Props) {
   const currentPage = Number(searchParams?.page) || 1;
   const pageSize = 3;
 
-  const { posts, totalCount } = await getPostsByStateSlug(params.slug, userId, currentPage, pageSize);
+  const { posts, totalCount, blocked } = await getPostsByStateSlug( // ✅ FIXED
+    params.slug,
+    userId,
+    currentPage,
+    pageSize
+  );
+
   const totalPages = Math.ceil(totalCount / pageSize);
+
+  if (blocked) return <BlockedProfileNotice />; // ✅ FIXED
+
+  if (totalCount === 0) return <p>No posts found for this state.</p>;
 
   return (
     <main>

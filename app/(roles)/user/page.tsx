@@ -6,9 +6,7 @@ import { signOut } from 'next-auth/react';
 import toast from 'react-hot-toast';
 import { confirmAlert } from 'react-confirm-alert';
 import 'react-confirm-alert/src/react-confirm-alert.css';
-
 import Link from 'next/link';
-
 import ImageWithFallback from '@/app/components/global/ImageWithFallback';
 import FollowPostButton from '@/app/components/blog/posts/FollowPostButton';
 import ActionButton from '@/app/components/global/ActionButton';
@@ -19,12 +17,10 @@ import RenderWebsite from '@/app/components/global/RenderWebsite';
 import RenderPhone from '@/app/components/global/RenderPhone';
 import RenderEmail from '@/app/components/global/RenderEmail';
 import { formatOrDash } from '@/app/utils/formatOrDash';
-
 import CommentEditForm from '@/app/components/comments/CommentEditForm';
 import CommentDeleteButton from '@/app/components/comments/CommentDeleteButton';
 import CommentsPagination from '@/app/components/comments/CommentsPagination';
 import PaginatedList from '@/app/components/global/pagination/PaginatedList';
-
 import { useCurrentUser } from '@/app/hooks/useCurrentUser';
 import FollowUserButton from '@/app/components/user/FollowUserButton';
 import BlockUserButton from '@/app/components/user/BlockUserButton';

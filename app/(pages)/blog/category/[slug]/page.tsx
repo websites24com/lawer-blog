@@ -8,8 +8,10 @@ import Pagination from '@/app/components/global/pagination/Pagination';
 import AuthorInfo from '@/app/components/user/AuthorInfo';
 import { capitalizeFirstLetter } from '@/app/utils/capitalizeFirstLetter';
 import Link from 'next/link';
+import { notFound } from 'next/navigation';
+import BlockedProfileNotice from '@/app/components/user/BlockProfileNotice';
 
-// Helper to strip HTML tags from excerpt
+// ✅ Strip HTML from excerpt safely
 function stripHtml(html: string): string {
   return html.replace(/<[^>]*>?/gm, '');
 }
@@ -25,8 +27,15 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
   const currentPage = Number(searchParams?.page) || 1;
   const pageSize = 3;
 
-  const { posts, totalCount } = await getPostsByCategorySlug(params.slug, userId, currentPage, pageSize);
+  // ✅ Get posts + blocked info
+  const { posts, totalCount, blocked } = await getPostsByCategorySlug(params.slug, userId, currentPage, pageSize);
   const totalPages = Math.ceil(totalCount / pageSize);
+
+  // ✅ Show blocked notice if blocked
+  if (blocked) return <BlockedProfileNotice />;
+
+  // ✅ Not blocked but truly empty
+  if (totalCount === 0) return notFound();
 
   return (
     <main>
@@ -43,7 +52,7 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
                   <div className="image-wrapper">
                     <ImageWithFallback
                       src={post.featured_photo}
-                      alt="Featured Post"
+                      alt={post.photo_alt || 'Featured Post'}
                       imageType="post"
                       className=""
                       wrapperClassName=""
@@ -59,7 +68,6 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
 
             <p>{stripHtml(post.excerpt)}...</p>
 
-            {/* ✅ Reuse consistent author/location block */}
             <AuthorInfo
               user_slug={post.user.slug}
               first_name={post.user.first_name}
@@ -67,7 +75,7 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
               avatar_url={post.user.avatar_url}
               created_at={post.created_at}
               category={post.category}
-               language={post.language}
+              language={post.language}
               country_name={post.country_name}
               state_name={post.state_name}
               city_name={post.city_name}

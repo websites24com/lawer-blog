@@ -6,8 +6,10 @@ import FollowButton from '@/app/components/blog/posts/FollowPostButton';
 import Pagination from '@/app/components/global/pagination/Pagination';
 import AuthorInfo from '@/app/components/user/AuthorInfo';
 import Link from 'next/link';
+import { notFound } from 'next/navigation';
+import BlockedProfileNotice from '@/app/components/user/BlockProfileNotice';
 
-// Helper to strip HTML tags from excerpt
+// ✅ Strip HTML from excerpt safely
 function stripHtml(html: string): string {
   return html.replace(/<[^>]*>?/gm, '');
 }
@@ -23,8 +25,15 @@ export default async function TagPage({ params, searchParams }: TagPageProps) {
   const currentPage = Number(searchParams?.page) || 1;
   const pageSize = 3;
 
-  const { posts, totalCount } = await getPostsByTag(params.slug, userId, currentPage, pageSize);
+  // ✅ Now using updated getPostsByTag with `blocked` and `totalCount`
+  const { posts, totalCount, blocked } = await getPostsByTag(params.slug, userId, currentPage, pageSize);
   const totalPages = Math.ceil(totalCount / pageSize);
+
+  // ✅ If viewer is blocked by the post author
+  if (blocked) return <BlockedProfileNotice />;
+
+  // ✅ If not blocked but no posts available
+  if (totalCount === 0) return notFound();
 
   return (
     <main>

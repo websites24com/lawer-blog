@@ -10,6 +10,8 @@ import StructuredData from '@/app/components/global/seo/StructuredData';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import PostReactionsList from '@/app/components/blog/posts/PostReactionsList';
+import BlockedProfileNotice from '@/app/components/user/BlockProfileNotice';
+import { notFound } from 'next/navigation';
 
 type PageProps = {
   params: {
@@ -43,9 +45,8 @@ export default async function BlogPostPage({ params }: PageProps) {
   const userId = session?.user?.id ?? 0;
   const post = await getPostBySlug(params.slug, userId);
 
-  if (!post) {
-    return <div><h1>404 - Post Not Found</h1></div>;
-  }
+if (!post) return notFound();
+if ('blocked' in post) return <BlockedProfileNotice />;
 
   
 

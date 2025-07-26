@@ -7,6 +7,7 @@ import Pagination from '@/app/components/global/pagination/Pagination';
 import AuthorInfo from '@/app/components/user/AuthorInfo';
 import Link from 'next/link';
 import { capitalizeFirstLetter } from '@/app/utils/capitalizeFirstLetter';
+import BlockedProfileNotice from '@/app/components/user/BlockProfileNotice'; // ✅ FIX — correct import
 
 function stripHtml(html: string): string {
   return html.replace(/<[^>]*>?/gm, '');
@@ -23,8 +24,18 @@ export default async function CityPage({ params, searchParams }: Props) {
   const currentPage = Number(searchParams?.page) || 1;
   const pageSize = 3;
 
-  const { posts, totalCount } = await getPostsByCitySlug(params.slug, userId, currentPage, pageSize);
+  const { posts, totalCount, blocked } = await getPostsByCitySlug( // ✅ FIX — receives blocked
+    params.slug,
+    userId,
+    currentPage,
+    pageSize
+  );
+
   const totalPages = Math.ceil(totalCount / pageSize);
+
+  if (blocked) return <BlockedProfileNotice />; // ✅ FIX — block response handling
+
+  if (totalCount === 0) return <p>No posts found for this city.</p>;
 
   return (
     <main>
@@ -60,7 +71,7 @@ export default async function CityPage({ params, searchParams }: Props) {
             {/* ✅ Excerpt */}
             <p>{stripHtml(post.excerpt)}...</p>
 
-            {/* ✅ Author Info block (injected) */}
+            {/* ✅ Author Info block */}
             <AuthorInfo
               user_slug={post.user.slug}
               first_name={post.user.first_name}
@@ -75,7 +86,10 @@ export default async function CityPage({ params, searchParams }: Props) {
             />
 
             {/* ✅ Follow Button */}
-            <FollowButton postId={post.id} initiallyFollowing={post.followed_by_current_user} />
+            <FollowButton
+              postId={post.id}
+              initiallyFollowing={post.followed_by_current_user}
+            />
           </li>
         ))}
       </ul>

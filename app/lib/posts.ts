@@ -1,13 +1,14 @@
 // ✅ Public - Approved posts
 import { db } from '@/app/lib/db';
 import type { RowDataPacket } from 'mysql2';
-
+import { isUserBlocked } from '@/app/lib/users/block'; // ✅ Add this at the top if not already
 import type { PostSummary, PostWithDetails, Category, CommentWithUser} from '@/app/lib/definitions';
 
 // ✅ Get paginated approved posts (for public pages)
 
+// ✅ Get all approved posts (paginated), only visible to viewerId
 export async function getAllApprovedPosts(
-  userId: number | null,
+  viewerId: number,
   page: number,
   pageSize: number
 ): Promise<PostSummary[]> {
@@ -24,56 +25,50 @@ export async function getAllApprovedPosts(
       p.featured_photo,
       p.photo_alt,
 
-      -- Join user info
+      -- ✅ language
+      ln.id AS language_id,           -- ✅ added
+      ln.name AS language_name,       -- ✅ added
+      ln.slug AS language_slug,       -- ✅ added
+
+      -- ✅ author
+      u.slug AS user_slug,
       u.first_name,
       u.last_name,
-      u.slug AS user_slug,
       u.avatar_url,
 
-      -- Category info
+      -- ✅ category
       c.id AS category_id,
       c.name AS category_name,
       c.slug AS category_slug,
 
-      -- Language info
-      ln.id AS language_id,
-      ln.name AS language_name,
-      ln.slug AS language_slug,
+      -- ✅ location (from posts)
+      co.name AS country_name,
+      s.name AS state_name,
+      ci.name AS city_name,
 
-      -- Location info
-      countries.name AS country_name,
-      states.name AS state_name,
-      cities.name AS city_name,
-
-      -- Tags
-      GROUP_CONCAT(DISTINCT t.name ORDER BY t.name ASC SEPARATOR ',') AS tags,
-
-      ${
-        userId
-          ? `EXISTS (
-              SELECT 1 FROM followed_posts fp
-              WHERE fp.post_id = p.id AND fp.user_id = ?
-            ) AS followed_by_current_user`
-          : `false AS followed_by_current_user`
-      }
+      -- follow status
+      CASE
+        WHEN fp.user_id IS NULL THEN FALSE
+        ELSE TRUE
+      END AS followed_by_current_user
 
     FROM posts p
-    LEFT JOIN users u ON p.user_id = u.id
+    JOIN users u ON p.user_id = u.id
     LEFT JOIN categories c ON p.category_id = c.id
-    LEFT JOIN languages ln ON p.language_id = ln.id
-    LEFT JOIN countries ON p.country_id = countries.id
-    LEFT JOIN states ON p.state_id = states.id
-    LEFT JOIN cities ON p.city_id = cities.id
-    LEFT JOIN post_tags pt ON p.id = pt.post_id
-    LEFT JOIN tags t ON pt.tag_id = t.id
+    LEFT JOIN languages ln ON p.language_id = ln.id       -- ✅ added
+    LEFT JOIN countries co ON p.country_id = co.id
+    LEFT JOIN states s ON p.state_id = s.id
+    LEFT JOIN cities ci ON p.city_id = ci.id
+    LEFT JOIN followed_posts fp ON p.id = fp.post_id AND fp.user_id = ?
 
     WHERE p.status = 'approved'
-    GROUP BY p.id
+    AND u.id NOT IN (SELECT blocked_id FROM blocked_users WHERE blocker_id = ?)
+    AND u.id NOT IN (SELECT blocker_id FROM blocked_users WHERE blocked_id = ?)
+
     ORDER BY p.created_at DESC
-    LIMIT ?
-    OFFSET ?
+    LIMIT ? OFFSET ?
     `,
-    userId ? [userId, pageSize, offset] : [pageSize, offset]
+    [viewerId, viewerId, viewerId, pageSize, offset]
   );
 
   return rows.map((row) => ({
@@ -81,49 +76,64 @@ export async function getAllApprovedPosts(
     slug: row.slug,
     title: row.title,
     excerpt: row.excerpt,
-    created_at: new Date(row.created_at).toISOString(),
-    featured_photo: row.featured_photo ?? null,
-    photo_alt: row.photo_alt ?? null,
-    country_name: row.country_name ?? null,
-    state_name: row.state_name ?? null,
-    city_name: row.city_name ?? null,
-    category: row.category_id
-      ? {
-          id: row.category_id,
-          name: row.category_name,
-          slug: row.category_slug,
-        }
-      : null,
-    language: row.language_id
-      ? {
-          id: row.language_id,
-          name: row.language_name,
-          slug: row.language_slug,
-        }
-      : null,
+    created_at: row.created_at,
+    featured_photo: row.featured_photo,
+    photo_alt: row.photo_alt,
     followed_by_current_user: !!row.followed_by_current_user,
-    tags: row.tags ? row.tags.split(',') : [],
-    status: 'approved',
+
     user: {
+      slug: row.user_slug,
       first_name: row.first_name,
       last_name: row.last_name,
-      slug: row.user_slug,
       avatar_url: row.avatar_url,
     },
+
+    category: {
+      id: row.category_id,
+      name: row.category_name,
+      slug: row.category_slug,
+    },
+
+    language: row.language_id
+      ? {
+          id: row.language_id,        // ✅ added
+          name: row.language_name,    // ✅ added
+          slug: row.language_slug,    // ✅ added
+        }
+      : null,
+
+    country_name: row.country_name || null,
+    state_name: row.state_name || null,
+    city_name: row.city_name || null,
   }));
 }
 
+// ✅ Count of all approved posts the current viewer is allowed to see
+export async function getApprovedPostCount(viewerId: number): Promise<number> {
+  const [rows] = await db.query<RowDataPacket[]>(
+    `
+    SELECT COUNT(*) AS count
+    FROM posts p
+    JOIN users u ON p.user_id = u.id
 
+    -- ✅ Only approved posts
+    WHERE p.status = 'approved'
 
-// ✅ Get approved post count for pagination
-export async function getApprovedPostCount(): Promise<number> {
-  const [rows] = await db.query<{ count: number }[]>(
-    'SELECT COUNT(*) as count FROM posts WHERE status = "approved"'
+    -- ✅ Exclude posts by users this viewer has blocked
+    AND u.id NOT IN (
+      SELECT blocked_id FROM blocked_users WHERE blocker_id = ?
+    )
+
+    -- ✅ Exclude posts by users who blocked this viewer
+    AND u.id NOT IN (
+      SELECT blocker_id FROM blocked_users WHERE blocked_id = ?
+    )
+    `,
+    [viewerId, viewerId] // ✅ used twice: once for blocker_id, once for blocked_id
   );
-  return rows[0].count;
+
+  return rows[0]?.count || 0;
 }
-
-
 
 // ✅ Get all posts for a specific user (dashboard)
 
@@ -157,7 +167,11 @@ export async function getAllPosts(userId: number): Promise<PostSummary[]> {
       users.avatar_url,
       users.slug AS user_slug,
 
-      -- Tags
+      -- ✅ Location info from posts
+      countries.name AS country_name, -- ✅ added
+      states.name AS state_name,      -- ✅ added
+      cities.name AS city_name,       -- ✅ added
+
       GROUP_CONCAT(DISTINCT t.name ORDER BY t.name SEPARATOR ',') AS tags,
 
       EXISTS (
@@ -169,6 +183,9 @@ export async function getAllPosts(userId: number): Promise<PostSummary[]> {
     LEFT JOIN categories ON posts.category_id = categories.id
     LEFT JOIN languages ln ON posts.language_id = ln.id
     LEFT JOIN users ON posts.user_id = users.id
+    LEFT JOIN countries ON posts.country_id = countries.id -- ✅ fixed: from posts
+    LEFT JOIN states ON posts.state_id = states.id         -- ✅ fixed: from posts
+    LEFT JOIN cities ON posts.city_id = cities.id          -- ✅ fixed: from posts
     LEFT JOIN post_tags pt ON posts.id = pt.post_id
     LEFT JOIN tags t ON pt.tag_id = t.id
 
@@ -209,21 +226,22 @@ export async function getAllPosts(userId: number): Promise<PostSummary[]> {
       avatar_url: row.avatar_url ?? null,
       slug: row.user_slug,
     },
+
+    country_name: row.country_name || null, // ✅ added
+    state_name: row.state_name || null,     // ✅ added
+    city_name: row.city_name || null,       // ✅ added
   }));
 }
 
 
-
-
-
 // ✅ Get a single post by slug (for view/edit), includes comments and tags
-
 
 export async function getPostBySlug(
   slug: string,
   viewerId: number
-): Promise<PostWithDetails | null> {
-  // ✅ 1. Load post data with language info
+): Promise<PostWithDetails | { blocked: true } | null>
+ {
+  // ✅ 1. Load post data including author info
   const [rows] = await db.query<any[]>(
     `
     SELECT 
@@ -273,7 +291,14 @@ export async function getPostBySlug(
   const post = rows[0];
   if (!post) return null;
 
-  // ✅ User
+  // 🔐 ✅ 2. BLOCK CHECK: If viewer is blocked or has blocked the author, return null
+  if (viewerId) {
+    const blocked = await isUserBlocked(viewerId, post.user_id); // ✅ Both directions
+   if (blocked) return { blocked: true };
+
+  }
+
+  // ✅ 3. Map post author info
   const user: PostWithDetails['user'] = {
     id: post.user_id,
     first_name: post.first_name,
@@ -282,7 +307,7 @@ export async function getPostBySlug(
     avatar_url: post.avatar_url ?? null,
   };
 
-  // ✅ Category
+  // ✅ 4. Map category
   const category = post.category_id
     ? {
         id: post.category_id,
@@ -291,7 +316,7 @@ export async function getPostBySlug(
       }
     : null;
 
-  // ✅ Language
+  // ✅ 5. Map language
   const language = post.language_id
     ? {
         id: post.language_id,
@@ -300,7 +325,7 @@ export async function getPostBySlug(
       }
     : null;
 
-  // ✅ Tags
+  // ✅ 6. Load tags
   const [tagRows] = await db.query<any[]>(
     `
     SELECT t.name
@@ -312,7 +337,7 @@ export async function getPostBySlug(
   );
   const tags = tagRows.map((t) => t.name);
 
-  // ✅ Comments
+  // ✅ 7. Load all comments for this post
   const [allComments] = await db.query<any[]>(
     `
     SELECT 
@@ -343,10 +368,12 @@ export async function getPostBySlug(
     [post.id]
   );
 
+  // ✅ 8. Filter comments to only show approved ones or viewer's own
   const visibleComments = allComments.filter(
     (comment) => comment.status === 'approved' || comment.user_id === viewerId
   );
 
+  // ✅ 9. Build nested comment tree
   const commentMap: { [id: number]: CommentWithUser } = {};
   const rootComments: CommentWithUser[] = [];
 
@@ -385,7 +412,7 @@ export async function getPostBySlug(
     }
   }
 
-  // ✅ Final result
+  // ✅ 10. Return full structured post
   const result: PostWithDetails = {
     id: post.id,
     slug: post.slug,
@@ -420,8 +447,6 @@ export async function getPostBySlug(
   return result;
 }
 
-
-
 // ✅ Get all categories with correct shape (id, name, slug)
 export async function getAllCategories(): Promise<Category[]> {
   const [rows] = await db.query<any[]>(
@@ -435,8 +460,6 @@ export async function getAllCategories(): Promise<Category[]> {
   }));
 }
 
-
-
 /**
  * Get all approved posts by tag slug
  */
@@ -447,98 +470,124 @@ export async function getPostsByTag(
   viewerId: number = 0,
   page: number = 1,
   pageSize: number = 10
-): Promise<{ posts: PostSummary[]; totalCount: number }> {
+): Promise<{ posts: PostSummary[]; totalCount: number; blocked: boolean }> {
   const offset = (page - 1) * pageSize;
-  const limit = pageSize;
 
-  const [rows] = await db.query<any[]>(
+  // ✅ 1. Check if author is blocked
+  const [authorResult] = await db.query<RowDataPacket[]>(
+    `
+    SELECT u.id AS user_id
+    FROM posts p
+    JOIN post_tags pt ON p.id = pt.post_id
+    JOIN tags t ON pt.tag_id = t.id
+    JOIN users u ON p.user_id = u.id
+    WHERE t.slug = ? AND p.status = 'approved'
+    LIMIT 1
+    `,
+    [slug]
+  );
+
+  const author = authorResult[0];
+  if (author) {
+    const blocked = await isUserBlocked(viewerId, author.user_id);
+    if (blocked) return { posts: [], totalCount: 0, blocked: true };
+  }
+
+  // ✅ 2. Load posts
+  const [rows] = await db.query<RowDataPacket[]>(
     `
     SELECT 
-      posts.id,
-      posts.slug,
-      posts.title,
-      posts.excerpt,
-      posts.created_at,
-      posts.featured_photo,
-      posts.photo_alt,
+      p.id,
+      p.slug,
+      p.title,
+      p.excerpt,
+      p.created_at,
+      p.featured_photo,
+      p.photo_alt,
+      p.status,
 
-      -- Location info
-      countries.name AS country_name,
-      states.name AS state_name,
-      cities.name AS city_name,
+      -- Location
+      co.name AS country_name,
+      s.name AS state_name,
+      ci.name AS city_name,
 
-      -- Category info
-      categories.id AS category_id,
-      categories.name AS category_name,
-      categories.slug AS category_slug,
+      -- Category
+      c.id AS category_id,
+      c.name AS category_name,
+      c.slug AS category_slug,
 
-      -- Language info
+      -- Language
       ln.id AS language_id,
       ln.name AS language_name,
       ln.slug AS language_slug,
 
-      -- User info
-      users.first_name,
-      users.last_name,
-      users.avatar_url,
-      users.slug AS user_slug,
+      -- Author
+      u.first_name,
+      u.last_name,
+      u.avatar_url,
+      u.slug AS user_slug,
 
       -- Tags
       GROUP_CONCAT(DISTINCT t.name ORDER BY t.name SEPARATOR ',') AS tags,
 
-      ${
-        viewerId
-          ? `EXISTS (
-               SELECT 1 FROM followed_posts 
-               WHERE followed_posts.user_id = ${db.escape(viewerId)} 
-               AND followed_posts.post_id = posts.id
-             ) AS followed_by_current_user`
-          : `FALSE AS followed_by_current_user`
-      }
+      EXISTS (
+        SELECT 1 FROM followed_posts 
+        WHERE followed_posts.user_id = ? 
+        AND followed_posts.post_id = p.id
+      ) AS followed_by_current_user
 
-    FROM posts
-    JOIN post_tags pt ON posts.id = pt.post_id
+    FROM posts p
+    JOIN post_tags pt ON p.id = pt.post_id
     JOIN tags t ON pt.tag_id = t.id
-    LEFT JOIN categories ON posts.category_id = categories.id
-    LEFT JOIN languages ln ON posts.language_id = ln.id
-    LEFT JOIN users ON posts.user_id = users.id
-    LEFT JOIN countries ON posts.country_id = countries.id
-    LEFT JOIN states ON posts.state_id = states.id
-    LEFT JOIN cities ON posts.city_id = cities.id
-    WHERE posts.status = 'approved'
+    JOIN users u ON p.user_id = u.id
+    LEFT JOIN categories c ON p.category_id = c.id
+    LEFT JOIN languages ln ON p.language_id = ln.id
+    LEFT JOIN countries co ON p.country_id = co.id
+    LEFT JOIN states s ON p.state_id = s.id
+    LEFT JOIN cities ci ON p.city_id = ci.id
+
+    WHERE p.status = 'approved'
       AND LOWER(t.slug) = LOWER(?)
-    GROUP BY posts.id
-    ORDER BY posts.created_at DESC
+
+    GROUP BY p.id
+    ORDER BY p.created_at DESC
     LIMIT ? OFFSET ?
     `,
-    [slug, limit, offset]
+    [viewerId, slug, pageSize, offset]
   );
 
-  const [countRows] = await db.query<any[]>(
+  const [countRows] = await db.query<RowDataPacket[]>(
     `
-    SELECT COUNT(DISTINCT posts.id) AS count
-    FROM posts
-    JOIN post_tags pt ON posts.id = pt.post_id
+    SELECT COUNT(DISTINCT p.id) AS count
+    FROM posts p
+    JOIN post_tags pt ON p.id = pt.post_id
     JOIN tags t ON pt.tag_id = t.id
-    WHERE posts.status = 'approved'
+    WHERE p.status = 'approved'
       AND LOWER(t.slug) = LOWER(?)
     `,
     [slug]
   );
 
-  const totalCount = countRows[0].count;
-
   const posts: PostSummary[] = rows.map((row) => ({
     id: row.id,
     slug: row.slug,
     title: row.title,
-    excerpt: row.excerpt,
+    excerpt: row.excerpt ?? '',
+    status: 'approved',
     created_at: new Date(row.created_at).toISOString(),
     featured_photo: row.featured_photo ?? null,
     photo_alt: row.photo_alt ?? null,
     country_name: row.country_name ?? null,
     state_name: row.state_name ?? null,
     city_name: row.city_name ?? null,
+    followed_by_current_user: !!row.followed_by_current_user,
+    tags: row.tags ? row.tags.split(',') : [],
+    user: {
+      first_name: row.first_name,
+      last_name: row.last_name,
+      avatar_url: row.avatar_url ?? null,
+      slug: row.user_slug,
+    },
     category: row.category_id
       ? {
           id: row.category_id,
@@ -553,168 +602,141 @@ export async function getPostsByTag(
           slug: row.language_slug,
         }
       : null,
-    followed_by_current_user: !!row.followed_by_current_user,
-    tags: row.tags ? row.tags.split(',') : [],
-    status: 'approved',
-    user: {
-      first_name: row.first_name,
-      last_name: row.last_name,
-      avatar_url: row.avatar_url ?? null,
-      slug: row.user_slug,
-    },
   }));
 
-  return { posts, totalCount };
+  return {
+    posts,
+    totalCount: countRows[0].count,
+    blocked: false,
+  };
 }
+
+
 
 // ✅ Get all approved posts by category slug (for /blog/category/[slug])
 
-
-
-
 export async function getPostsByCategorySlug(
   slug: string,
-  viewerId: number = 0,
-  page: number = 1,
-  pageSize: number = 10
-): Promise<{ posts: PostSummary[]; totalCount: number }> {
+  viewerId: number,
+  page: number,
+  pageSize: number
+): Promise<{ posts: PostSummary[]; totalCount: number; blocked: boolean }> {
   const offset = (page - 1) * pageSize;
-  const limit = pageSize;
 
-  const [rows] = await db.query<any[]>(
+  // ✅ Fetch author ID for posts in this category (assuming same author per category)
+  const [authorResult] = await db.query<RowDataPacket[]>(
     `
-    SELECT 
-      posts.id,
-      posts.slug,
-      posts.title,
-      posts.excerpt,
-      posts.created_at,
-      posts.featured_photo,
-      posts.photo_alt,
-
-      -- Location info
-      countries.name AS country_name,
-      states.name AS state_name,
-      cities.name AS city_name,
-
-      -- Category info
-      categories.id AS category_id,
-      categories.name AS category_name,
-      categories.slug AS category_slug,
-
-      -- Language info
-      ln.id AS language_id,
-      ln.name AS language_name,
-      ln.slug AS language_slug,
-
-      -- User info
-      users.first_name,
-      users.last_name,
-      users.avatar_url,
-      users.slug AS user_slug,
-
-      -- Tags
-      GROUP_CONCAT(DISTINCT t.name ORDER BY t.name SEPARATOR ',') AS tags,
-
-      ${
-        viewerId
-          ? `EXISTS (
-               SELECT 1 FROM followed_posts 
-               WHERE followed_posts.user_id = ${db.escape(viewerId)} 
-               AND followed_posts.post_id = posts.id
-             ) AS followed_by_current_user`
-          : `FALSE AS followed_by_current_user`
-      }
-
-    FROM posts
-    LEFT JOIN categories ON posts.category_id = categories.id
-    LEFT JOIN languages ln ON posts.language_id = ln.id
-    LEFT JOIN users ON posts.user_id = users.id
-    LEFT JOIN countries ON posts.country_id = countries.id
-    LEFT JOIN states ON posts.state_id = states.id
-    LEFT JOIN cities ON posts.city_id = cities.id
-    LEFT JOIN post_tags pt ON pt.post_id = posts.id
-    LEFT JOIN tags t ON pt.tag_id = t.id
-    WHERE posts.status = 'approved'
-      AND LOWER(categories.slug) = LOWER(?)
-    GROUP BY posts.id
-    ORDER BY posts.created_at DESC
-    LIMIT ? OFFSET ?
-    `,
-    [slug, limit, offset]
-  );
-
-  const [countRows] = await db.query<any[]>(
-    `
-    SELECT COUNT(DISTINCT posts.id) AS count
-    FROM posts
-    LEFT JOIN categories ON posts.category_id = categories.id
-    WHERE posts.status = 'approved'
-      AND LOWER(categories.slug) = LOWER(?)
+    SELECT u.id AS user_id
+    FROM posts p
+    JOIN users u ON p.user_id = u.id
+    JOIN categories c ON p.category_id = c.id
+    WHERE c.slug = ? AND p.status = 'approved'
+    LIMIT 1
     `,
     [slug]
   );
 
-  const totalCount = countRows[0].count;
+  const author = authorResult[0];
+  if (author) {
+    const blocked = await isUserBlocked(viewerId, author.user_id); // ✅ check block relation
+    if (blocked) {
+      return { posts: [], totalCount: 0, blocked: true }; // ✅ signal frontend to show <BlockedProfileNotice />
+    }
+  }
 
-  const posts: PostSummary[] = rows.map((row) => ({
-    id: row.id,
-    slug: row.slug,
-    title: row.title,
-    excerpt: row.excerpt,
-    created_at: new Date(row.created_at).toISOString(),
-    featured_photo: row.featured_photo ?? null,
-    photo_alt: row.photo_alt ?? null,
-    country_name: row.country_name ?? null,
-    state_name: row.state_name ?? null,
-    city_name: row.city_name ?? null,
-    category: row.category_id
-      ? {
-          id: row.category_id,
-          name: row.category_name,
-          slug: row.category_slug,
-        }
-      : null,
-    language: row.language_id
-      ? {
-          id: row.language_id,
-          name: row.language_name,
-          slug: row.language_slug,
-        }
-      : null,
-    followed_by_current_user: !!row.followed_by_current_user,
-    tags: row.tags ? row.tags.split(',') : [],
-    status: 'approved',
-    user: {
-      first_name: row.first_name,
-      last_name: row.last_name,
-      avatar_url: row.avatar_url ?? null,
-      slug: row.user_slug,
-    },
-  }));
+  // ✅ Normal post fetch with full metadata
+  const [rows] = await db.query<RowDataPacket[]>(
+    `
+    SELECT
+      p.id,
+      p.slug,
+      p.title,
+      p.excerpt,
+      p.created_at,
+      p.featured_photo,
+      p.photo_alt,
+      p.photo_title,
 
-  return { posts, totalCount };
+      u.first_name,
+      u.last_name,
+      u.slug AS user_slug,
+      u.avatar_url,
+
+      c.id AS category_id,
+      c.name AS category_name,
+      c.slug AS category_slug,
+
+      l.id AS language_id,
+      l.name AS language_name,
+      l.slug AS language_slug,
+
+      countries.name AS country_name,
+      states.name AS state_name,
+      cities.name AS city_name,
+
+      EXISTS (
+        SELECT 1 FROM followed_posts fp
+        WHERE fp.post_id = p.id AND fp.user_id = ?
+      ) AS followed_by_current_user
+
+    FROM posts p
+    JOIN users u ON p.user_id = u.id
+    JOIN categories c ON p.category_id = c.id
+    LEFT JOIN languages l ON p.language_id = l.id
+    LEFT JOIN countries ON p.country_id = countries.id
+    LEFT JOIN states ON p.state_id = states.id
+    LEFT JOIN cities ON p.city_id = cities.id
+    WHERE c.slug = ? AND p.status = 'approved'
+    ORDER BY p.created_at DESC
+    LIMIT ? OFFSET ?
+    `,
+    [viewerId, slug, pageSize, offset]
+  );
+
+  const [countResult] = await db.query<RowDataPacket[]>(
+    `
+    SELECT COUNT(*) AS count
+    FROM posts p
+    JOIN categories c ON p.category_id = c.id
+    WHERE c.slug = ? AND p.status = 'approved'
+    `,
+    [slug]
+  );
+
+  return {
+    posts: rows as PostSummary[],
+    totalCount: countResult[0].count,
+    blocked: false, // ✅ not blocked, allow frontend to render
+  };
 }
 
-
-
-
-
-
-
-
+// ✅ Get all approved posts by country slug
 // ✅ Get all approved posts by country slug
 export async function getPostsByCountrySlug(
   slug: string,
   viewerId: number = 0,
   page: number = 1,
   pageSize: number = 10
-): Promise<{ posts: PostSummary[]; totalCount: number }> {
+): Promise<{ posts: PostSummary[]; totalCount: number; blocked: boolean }> {
   const decodedSlug = decodeURIComponent(slug);
   const offset = (page - 1) * pageSize;
-  const limit = pageSize;
 
-  const [rows] = await db.query<any[]>(
+  // ✅ STEP 1: Count all posts in the country (even blocked ones)
+  const [rawCountryPosts] = await db.query<RowDataPacket[]>(
+    `
+    SELECT COUNT(*) AS total
+    FROM posts
+    JOIN countries ON posts.country_id = countries.id
+    WHERE posts.status = 'approved'
+      AND LOWER(countries.name) = LOWER(?)
+    `,
+    [decodedSlug]
+  );
+
+  const totalUnfiltered = rawCountryPosts[0]?.total || 0;
+
+  // ✅ STEP 2: Get filtered posts (excluding blocked users)
+  const [rows] = await db.query<RowDataPacket[]>(
     `
     SELECT 
       posts.id,
@@ -725,47 +747,80 @@ export async function getPostsByCountrySlug(
       posts.created_at,
       posts.featured_photo,
       posts.photo_alt,
+
       countries.name AS country_name,
       states.name AS state_name,
       cities.name AS city_name,
+
       categories.id AS category_id,
       categories.name AS category_name,
       categories.slug AS category_slug,
-      ln.id AS language_id, -- ✅ new line
-      ln.name AS language_name, -- ✅ new line
-      ln.slug AS language_slug, -- ✅ new line
+
+      ln.id AS language_id,
+      ln.name AS language_name,
+      ln.slug AS language_slug,
+
       users.first_name,
       users.last_name,
       users.avatar_url,
       users.slug AS user_slug,
+
       GROUP_CONCAT(DISTINCT t.name ORDER BY t.name SEPARATOR ',') AS tags,
-      ${
-        viewerId
-          ? `EXISTS (
-               SELECT 1 FROM followed_posts 
-               WHERE followed_posts.user_id = ${db.escape(viewerId)} 
-               AND followed_posts.post_id = posts.id
-             ) AS followed_by_current_user`
-          : `FALSE AS followed_by_current_user`
-      }
+
+      EXISTS (
+        SELECT 1 FROM followed_posts 
+        WHERE followed_posts.user_id = ?
+        AND followed_posts.post_id = posts.id
+      ) AS followed_by_current_user
+
     FROM posts
+    JOIN users ON posts.user_id = users.id
     LEFT JOIN categories ON posts.category_id = categories.id
-    LEFT JOIN languages ln ON posts.language_id = ln.id -- ✅ new line
-    LEFT JOIN users ON posts.user_id = users.id
+    LEFT JOIN languages ln ON posts.language_id = ln.id
     LEFT JOIN countries ON posts.country_id = countries.id
     LEFT JOIN states ON posts.state_id = states.id
     LEFT JOIN cities ON posts.city_id = cities.id
     LEFT JOIN post_tags pt ON posts.id = pt.post_id
     LEFT JOIN tags t ON pt.tag_id = t.id
+
     WHERE posts.status = 'approved'
       AND LOWER(countries.name) = LOWER(?)
+
+      -- ✅ BLOCKING LOGIC
+      AND users.id NOT IN (
+        SELECT blocked_id FROM blocked_users WHERE blocker_id = ?
+      )
+      AND users.id NOT IN (
+        SELECT blocker_id FROM blocked_users WHERE blocked_id = ?
+      )
+
     GROUP BY posts.id
     ORDER BY posts.created_at DESC
     LIMIT ? OFFSET ?
     `,
-    [decodedSlug, limit, offset]
+    [viewerId, decodedSlug, viewerId, viewerId, pageSize, offset]
   );
 
+  // ✅ STEP 3: Count filtered (visible) posts
+  const [countRows] = await db.query<RowDataPacket[]>(
+    `
+    SELECT COUNT(DISTINCT posts.id) AS count
+    FROM posts
+    JOIN users ON posts.user_id = users.id
+    JOIN countries ON posts.country_id = countries.id
+    WHERE posts.status = 'approved'
+      AND LOWER(countries.name) = LOWER(?)
+      AND users.id NOT IN (
+        SELECT blocked_id FROM blocked_users WHERE blocker_id = ?
+      )
+      AND users.id NOT IN (
+        SELECT blocker_id FROM blocked_users WHERE blocked_id = ?
+      )
+    `,
+    [decodedSlug, viewerId, viewerId]
+  );
+
+  // ✅ STEP 4: Build post list
   const posts: PostSummary[] = rows.map((row) => ({
     id: row.id,
     slug: row.slug,
@@ -785,7 +840,7 @@ export async function getPostsByCountrySlug(
           slug: row.category_slug,
         }
       : null,
-    language: row.language_id // ✅ new line
+    language: row.language_id
       ? {
           id: row.language_id,
           name: row.language_name,
@@ -802,20 +857,13 @@ export async function getPostsByCountrySlug(
     },
   }));
 
-  const [countRows] = await db.query<any[]>(
-    `
-    SELECT COUNT(DISTINCT posts.id) AS count
-    FROM posts
-    LEFT JOIN countries ON posts.country_id = countries.id
-    WHERE posts.status = 'approved'
-      AND LOWER(countries.name) = LOWER(?)
-    `,
-    [slug]
-  );
+  // ✅ STEP 5: Check if viewer is blocked
+  const blocked = totalUnfiltered > 0 && posts.length === 0;
 
   return {
     posts,
     totalCount: countRows[0].count,
+    blocked,
   };
 }
 
@@ -827,12 +875,26 @@ export async function getPostsByStateSlug(
   viewerId: number = 0,
   page: number = 1,
   pageSize: number = 10
-): Promise<{ posts: PostSummary[]; totalCount: number }> {
+): Promise<{ posts: PostSummary[]; totalCount: number; blocked: boolean }> {
   const decodedSlug = decodeURIComponent(slug);
   const offset = (page - 1) * pageSize;
-  const limit = pageSize;
 
-  const [rows] = await db.query<any[]>(
+  // ✅ STEP 1: Check if any posts exist in this state (even if viewer is blocked)
+  const [rawStatePosts] = await db.query<RowDataPacket[]>(
+    `
+    SELECT COUNT(*) AS total
+    FROM posts
+    JOIN states ON posts.state_id = states.id
+    WHERE posts.status = 'approved'
+      AND LOWER(states.name) = LOWER(?)
+    `,
+    [decodedSlug]
+  );
+
+  const totalUnfiltered = rawStatePosts[0]?.total || 0; // ✅ Raw post count before block filtering
+
+  // ✅ STEP 2: Fetch filtered posts (excluding blocked authors)
+  const [rows] = await db.query<RowDataPacket[]>(
     `
     SELECT 
       posts.id,
@@ -843,47 +905,80 @@ export async function getPostsByStateSlug(
       posts.created_at,
       posts.featured_photo,
       posts.photo_alt,
+
       countries.name AS country_name,
       states.name AS state_name,
       cities.name AS city_name,
+
       categories.id AS category_id,
       categories.name AS category_name,
       categories.slug AS category_slug,
-      ln.id AS language_id, -- ✅ new line
-      ln.name AS language_name, -- ✅ new line
-      ln.slug AS language_slug, -- ✅ new line
+
+      ln.id AS language_id,
+      ln.name AS language_name,
+      ln.slug AS language_slug,
+
       users.first_name,
       users.last_name,
       users.avatar_url,
       users.slug AS user_slug,
+
       GROUP_CONCAT(DISTINCT t.name ORDER BY t.name SEPARATOR ',') AS tags,
-      ${
-        viewerId
-          ? `EXISTS (
-               SELECT 1 FROM followed_posts 
-               WHERE followed_posts.user_id = ${db.escape(viewerId)} 
-               AND followed_posts.post_id = posts.id
-             ) AS followed_by_current_user`
-          : `FALSE AS followed_by_current_user`
-      }
+
+      EXISTS (
+        SELECT 1 FROM followed_posts 
+        WHERE followed_posts.user_id = ?
+        AND followed_posts.post_id = posts.id
+      ) AS followed_by_current_user
+
     FROM posts
+    JOIN users ON posts.user_id = users.id
     LEFT JOIN categories ON posts.category_id = categories.id
-    LEFT JOIN languages ln ON posts.language_id = ln.id -- ✅ new line
-    LEFT JOIN users ON posts.user_id = users.id
+    LEFT JOIN languages ln ON posts.language_id = ln.id
     LEFT JOIN countries ON posts.country_id = countries.id
     LEFT JOIN states ON posts.state_id = states.id
     LEFT JOIN cities ON posts.city_id = cities.id
     LEFT JOIN post_tags pt ON posts.id = pt.post_id
     LEFT JOIN tags t ON pt.tag_id = t.id
+
     WHERE posts.status = 'approved'
       AND LOWER(states.name) = LOWER(?)
+
+      -- ✅ BLOCKING FILTER
+      AND users.id NOT IN (
+        SELECT blocked_id FROM blocked_users WHERE blocker_id = ?
+      )
+      AND users.id NOT IN (
+        SELECT blocker_id FROM blocked_users WHERE blocked_id = ?
+      )
+
     GROUP BY posts.id
     ORDER BY posts.created_at DESC
     LIMIT ? OFFSET ?
     `,
-    [decodedSlug, limit, offset]
+    [viewerId, decodedSlug, viewerId, viewerId, pageSize, offset] // ✅ Clean param order
   );
 
+  // ✅ STEP 3: Count visible posts (excluding blocked authors)
+  const [countRows] = await db.query<RowDataPacket[]>(
+    `
+    SELECT COUNT(DISTINCT posts.id) AS count
+    FROM posts
+    JOIN users ON posts.user_id = users.id
+    JOIN states ON posts.state_id = states.id
+    WHERE posts.status = 'approved'
+      AND LOWER(states.name) = LOWER(?)
+      AND users.id NOT IN (
+        SELECT blocked_id FROM blocked_users WHERE blocker_id = ?
+      )
+      AND users.id NOT IN (
+        SELECT blocker_id FROM blocked_users WHERE blocked_id = ?
+      )
+    `,
+    [decodedSlug, viewerId, viewerId]
+  );
+
+  // ✅ STEP 4: Map results
   const posts: PostSummary[] = rows.map((row) => ({
     id: row.id,
     slug: row.slug,
@@ -903,6 +998,13 @@ export async function getPostsByStateSlug(
           slug: row.category_slug,
         }
       : null,
+    language: row.language_id
+      ? {
+          id: row.language_id,
+          name: row.language_name,
+          slug: row.language_slug,
+        }
+      : null,
     followed_by_current_user: !!row.followed_by_current_user,
     tags: row.tags ? row.tags.split(',') : [],
     user: {
@@ -913,23 +1015,15 @@ export async function getPostsByStateSlug(
     },
   }));
 
-  const [countRows] = await db.query<any[]>(
-    `
-    SELECT COUNT(DISTINCT posts.id) AS count
-    FROM posts
-    LEFT JOIN states ON posts.state_id = states.id
-    WHERE posts.status = 'approved'
-      AND LOWER(states.name) = LOWER(?)
-    `,
-    [slug]
-  );
+  // ✅ STEP 5: Final check — block status
+  const blocked = totalUnfiltered > 0 && posts.length === 0; // ✅ Correct blocked detection
 
   return {
     posts,
     totalCount: countRows[0].count,
+    blocked,
   };
 }
-
 
 
 // ✅ Get all approved posts by city slug
@@ -938,121 +1032,27 @@ export async function getPostsByCitySlug(
   viewerId: number = 0,
   page: number = 1,
   pageSize: number = 10
-): Promise<{ posts: PostSummary[]; totalCount: number }> {
-  const decodedSlug = decodeURIComponent(slug); 
-  const offset = (page - 1) * pageSize;
-  const limit = pageSize;
-
-  const [rows] = await db.query<any[]>(
-    `
-    SELECT 
-      posts.id,
-      posts.slug,
-      posts.title,
-      posts.excerpt,
-      posts.status,
-      posts.created_at,
-      posts.featured_photo,
-      posts.photo_alt,
-      countries.name AS country_name,
-      states.name AS state_name,
-      cities.name AS city_name,
-      categories.id AS category_id,
-      categories.name AS category_name,
-      categories.slug AS category_slug,
-      ln.id AS language_id, -- ✅ new line
-      ln.name AS language_name, -- ✅ new line
-      ln.slug AS language_slug, -- ✅ new line
-      users.first_name,
-      users.last_name,
-      users.avatar_url,
-      users.slug AS user_slug,
-      GROUP_CONCAT(DISTINCT t.name ORDER BY t.name SEPARATOR ',') AS tags,
-      ${
-        viewerId
-          ? `EXISTS (
-               SELECT 1 FROM followed_posts 
-               WHERE followed_posts.user_id = ${db.escape(viewerId)} 
-               AND followed_posts.post_id = posts.id
-             ) AS followed_by_current_user`
-          : `FALSE AS followed_by_current_user`
-      }
-    FROM posts
-    LEFT JOIN categories ON posts.category_id = categories.id
-    LEFT JOIN languages ln ON posts.language_id = ln.id -- ✅ new line
-    LEFT JOIN users ON posts.user_id = users.id
-    LEFT JOIN countries ON posts.country_id = countries.id
-    LEFT JOIN states ON posts.state_id = states.id
-    LEFT JOIN cities ON posts.city_id = cities.id
-    LEFT JOIN post_tags pt ON posts.id = pt.post_id
-    LEFT JOIN tags t ON pt.tag_id = t.id
-    WHERE posts.status = 'approved'
-      AND LOWER(cities.name) = LOWER(?)
-    GROUP BY posts.id
-    ORDER BY posts.created_at DESC
-    LIMIT ? OFFSET ?
-    `,
-    [decodedSlug, limit, offset]
-  );
-
-  const posts: PostSummary[] = rows.map((row) => ({
-    id: row.id,
-    slug: row.slug,
-    title: row.title,
-    excerpt: row.excerpt ?? '',
-    status: 'approved',
-    created_at: new Date(row.created_at).toISOString(),
-    featured_photo: row.featured_photo ?? null,
-    photo_alt: row.photo_alt ?? null,
-    country_name: row.country_name ?? null,
-    state_name: row.state_name ?? null,
-    city_name: row.city_name ?? null,
-    category: row.category_id
-      ? {
-          id: row.category_id,
-          name: row.category_name,
-          slug: row.category_slug,
-        }
-      : null,
-    followed_by_current_user: !!row.followed_by_current_user,
-    tags: row.tags ? row.tags.split(',') : [],
-    user: {
-      first_name: row.first_name,
-      last_name: row.last_name,
-      avatar_url: row.avatar_url ?? null,
-      slug: row.user_slug,
-    },
-  }));
-
-  const [countRows] = await db.query<any[]>(
-    `
-    SELECT COUNT(DISTINCT posts.id) AS count
-    FROM posts
-    LEFT JOIN cities ON posts.city_id = cities.id
-    WHERE posts.status = 'approved'
-      AND LOWER(cities.name) = LOWER(?)
-    `,
-    [slug]
-  );
-
-  return {
-    posts,
-    totalCount: countRows[0].count,
-  };
-}
-
-// ✅ Get all approved posts by language slug
-export async function getPostsByLanguageSlug(
-  slug: string,
-  viewerId: number = 0,
-  page: number = 1,
-  pageSize: number = 10
-): Promise<{ posts: PostSummary[]; totalCount: number }> {
+): Promise<{ posts: PostSummary[]; totalCount: number; blocked: boolean }> {
   const decodedSlug = decodeURIComponent(slug);
   const offset = (page - 1) * pageSize;
   const limit = pageSize;
 
-  const [rows] = await db.query<any[]>(
+  // ✅ Check if there are ANY posts for this city (even blocked ones)
+  const [rawCityPosts] = await db.query<RowDataPacket[]>(
+    `
+    SELECT COUNT(*) AS total
+    FROM posts
+    JOIN cities ON posts.city_id = cities.id
+    WHERE posts.status = 'approved'
+      AND LOWER(cities.name) = LOWER(?)
+    `,
+    [decodedSlug]
+  );
+
+  const totalUnfiltered = rawCityPosts[0]?.total || 0; // ✅ total posts without block filter
+
+  // ✅ Now fetch filtered posts
+  const [rows] = await db.query<RowDataPacket[]>(
     `
     SELECT 
       posts.id,
@@ -1064,44 +1064,35 @@ export async function getPostsByLanguageSlug(
       posts.featured_photo,
       posts.photo_alt,
 
-      -- Location info
       countries.name AS country_name,
       states.name AS state_name,
       cities.name AS city_name,
 
-      -- Category info
       categories.id AS category_id,
       categories.name AS category_name,
       categories.slug AS category_slug,
 
-      -- Language info
       ln.id AS language_id,
       ln.name AS language_name,
       ln.slug AS language_slug,
 
-      -- User info
       users.first_name,
       users.last_name,
       users.avatar_url,
       users.slug AS user_slug,
 
-      -- Tags
       GROUP_CONCAT(DISTINCT t.name ORDER BY t.name SEPARATOR ',') AS tags,
 
-      ${
-        viewerId
-          ? `EXISTS (
-               SELECT 1 FROM followed_posts 
-               WHERE followed_posts.user_id = ${db.escape(viewerId)} 
-               AND followed_posts.post_id = posts.id
-             ) AS followed_by_current_user`
-          : `FALSE AS followed_by_current_user`
-      }
+      EXISTS (
+        SELECT 1 FROM followed_posts 
+        WHERE followed_posts.user_id = ?
+        AND followed_posts.post_id = posts.id
+      ) AS followed_by_current_user
 
     FROM posts
+    JOIN users ON posts.user_id = users.id
     LEFT JOIN categories ON posts.category_id = categories.id
     LEFT JOIN languages ln ON posts.language_id = ln.id
-    LEFT JOIN users ON posts.user_id = users.id
     LEFT JOIN countries ON posts.country_id = countries.id
     LEFT JOIN states ON posts.state_id = states.id
     LEFT JOIN cities ON posts.city_id = cities.id
@@ -1109,24 +1100,39 @@ export async function getPostsByLanguageSlug(
     LEFT JOIN tags t ON pt.tag_id = t.id
 
     WHERE posts.status = 'approved'
-      AND LOWER(ln.slug) = LOWER(?)
+      AND LOWER(cities.name) = LOWER(?)
+
+      -- ✅ BLOCK FILTER
+      AND users.id NOT IN (
+        SELECT blocked_id FROM blocked_users WHERE blocker_id = ?
+      )
+      AND users.id NOT IN (
+        SELECT blocker_id FROM blocked_users WHERE blocked_id = ?
+      )
 
     GROUP BY posts.id
     ORDER BY posts.created_at DESC
     LIMIT ? OFFSET ?
     `,
-    [decodedSlug, limit, offset]
+    [viewerId, decodedSlug, viewerId, viewerId, limit, offset]
   );
 
-  const [countRows] = await db.query<any[]>(
+  const [countRows] = await db.query<RowDataPacket[]>(
     `
     SELECT COUNT(DISTINCT posts.id) AS count
     FROM posts
-    LEFT JOIN languages ln ON posts.language_id = ln.id
+    JOIN users ON posts.user_id = users.id
+    JOIN cities ON posts.city_id = cities.id
     WHERE posts.status = 'approved'
-      AND LOWER(ln.slug) = LOWER(?)
+      AND LOWER(cities.name) = LOWER(?)
+      AND users.id NOT IN (
+        SELECT blocked_id FROM blocked_users WHERE blocker_id = ?
+      )
+      AND users.id NOT IN (
+        SELECT blocker_id FROM blocked_users WHERE blocked_id = ?
+      )
     `,
-    [slug]
+    [decodedSlug, viewerId, viewerId]
   );
 
   const posts: PostSummary[] = rows.map((row) => ({
@@ -1165,11 +1171,165 @@ export async function getPostsByLanguageSlug(
     },
   }));
 
+  // ✅ FINAL LOGIC: if original posts exist but none are visible = viewer is blocked
+  const blocked = totalUnfiltered > 0 && posts.length === 0; // ✅ FIXED
+
   return {
     posts,
     totalCount: countRows[0].count,
+    blocked,
   };
 }
+
+
+
+// ✅ Get all approved posts by language slug
+// ✅ Required for block check
+
+
+// ✅ Get all approved posts by language slug
+export async function getPostsByLanguageSlug(
+  slug: string,
+  viewerId: number = 0,
+  page: number = 1,
+  pageSize: number = 10
+): Promise<{ posts: PostSummary[]; totalCount: number; blocked: boolean }> {
+  const decodedSlug = decodeURIComponent(slug);
+  const offset = (page - 1) * pageSize;
+
+  // ✅ Fetch filtered posts
+  const [rows] = await db.query<RowDataPacket[]>(
+    `
+    SELECT 
+      posts.id,
+      posts.slug,
+      posts.title,
+      posts.excerpt,
+      posts.status,
+      posts.created_at,
+      posts.featured_photo,
+      posts.photo_alt,
+
+      countries.name AS country_name,
+      states.name AS state_name,
+      cities.name AS city_name,
+
+      categories.id AS category_id,
+      categories.name AS category_name,
+      categories.slug AS category_slug,
+
+      ln.id AS language_id,
+      ln.name AS language_name,
+      ln.slug AS language_slug,
+
+      users.first_name,
+      users.last_name,
+      users.avatar_url,
+      users.slug AS user_slug,
+
+      GROUP_CONCAT(DISTINCT t.name ORDER BY t.name SEPARATOR ',') AS tags,
+
+      EXISTS (
+        SELECT 1 FROM followed_posts 
+        WHERE followed_posts.user_id = ? 
+        AND followed_posts.post_id = posts.id
+      ) AS followed_by_current_user
+
+    FROM posts
+    JOIN users ON posts.user_id = users.id
+    JOIN languages ln ON posts.language_id = ln.id
+    LEFT JOIN categories ON posts.category_id = categories.id
+    LEFT JOIN countries ON posts.country_id = countries.id
+    LEFT JOIN states ON posts.state_id = states.id
+    LEFT JOIN cities ON posts.city_id = cities.id
+    LEFT JOIN post_tags pt ON posts.id = pt.post_id
+    LEFT JOIN tags t ON pt.tag_id = t.id
+
+    WHERE posts.status = 'approved'
+      AND LOWER(ln.slug) = LOWER(?)
+      
+      -- ✅ FIX: exclude blocked authors
+      AND users.id NOT IN (
+        SELECT blocked_id FROM blocked_users WHERE blocker_id = ?
+      ) -- ✅ FIX
+      AND users.id NOT IN (
+        SELECT blocker_id FROM blocked_users WHERE blocked_id = ?
+      ) -- ✅ FIX
+
+    GROUP BY posts.id
+    ORDER BY posts.created_at DESC
+    LIMIT ? OFFSET ?
+    `,
+    [viewerId, decodedSlug, viewerId, viewerId, pageSize, offset] // ✅ FIX: viewerId passed twice for block checks
+  );
+
+  // ✅ Count total matching posts (excluding blocked authors)
+  const [countRows] = await db.query<RowDataPacket[]>(
+    `
+    SELECT COUNT(DISTINCT posts.id) AS count
+    FROM posts
+    JOIN users ON posts.user_id = users.id
+    JOIN languages ln ON posts.language_id = ln.id
+
+    WHERE posts.status = 'approved'
+      AND LOWER(ln.slug) = LOWER(?)
+
+      -- ✅ FIX: exclude blocked authors from count as well
+      AND users.id NOT IN (
+        SELECT blocked_id FROM blocked_users WHERE blocker_id = ?
+      )
+      AND users.id NOT IN (
+        SELECT blocker_id FROM blocked_users WHERE blocked_id = ?
+      )
+    `,
+    [decodedSlug, viewerId, viewerId] // ✅ FIX
+  );
+
+  const posts: PostSummary[] = rows.map((row) => ({
+    id: row.id,
+    slug: row.slug,
+    title: row.title,
+    excerpt: row.excerpt ?? '',
+    status: 'approved',
+    created_at: new Date(row.created_at).toISOString(),
+    featured_photo: row.featured_photo ?? null,
+    photo_alt: row.photo_alt ?? null,
+    country_name: row.country_name ?? null,
+    state_name: row.state_name ?? null,
+    city_name: row.city_name ?? null,
+    category: row.category_id
+      ? {
+          id: row.category_id,
+          name: row.category_name,
+          slug: row.category_slug,
+        }
+      : null,
+    language: row.language_id
+      ? {
+          id: row.language_id,
+          name: row.language_name,
+          slug: row.language_slug,
+        }
+      : null,
+    followed_by_current_user: !!row.followed_by_current_user,
+    tags: row.tags ? row.tags.split(',') : [],
+    user: {
+      first_name: row.first_name,
+      last_name: row.last_name,
+      avatar_url: row.avatar_url ?? null,
+      slug: row.user_slug,
+    },
+  }));
+
+  // ✅ Always return blocked: false – filtering is handled in SQL now
+  return {
+    posts,
+    totalCount: countRows[0].count,
+    blocked: false, // ✅ FIX: viewer never sees blocked content
+  };
+}
+
+
 
 
 

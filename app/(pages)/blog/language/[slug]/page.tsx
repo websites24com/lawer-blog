@@ -7,8 +7,9 @@ import Pagination from '@/app/components/global/pagination/Pagination';
 import AuthorInfo from '@/app/components/user/AuthorInfo';
 import Link from 'next/link';
 import { capitalizeFirstLetter } from '@/app/utils/capitalizeFirstLetter';
+import BlockedProfileNotice from '@/app/components/user/BlockProfileNotice'; // ✅ NEW
 
-// Helper to strip HTML tags from excerpt
+// ✅ Strip HTML tags from excerpt
 function stripHtml(html: string): string {
   return html.replace(/<[^>]*>?/gm, '');
 }
@@ -24,8 +25,17 @@ export default async function LanguagePage({ params, searchParams }: LanguagePag
   const currentPage = Number(searchParams?.page) || 1;
   const pageSize = 3;
 
-  const { posts, totalCount } = await getPostsByLanguageSlug(params.slug, userId, currentPage, pageSize);
+  // ✅ Now fetch posts and block status using updated function
+  const { posts, totalCount, blocked } = await getPostsByLanguageSlug(params.slug, userId, currentPage, pageSize); // ✅ NEW
   const totalPages = Math.ceil(totalCount / pageSize);
+
+  // ✅ Show block notice if viewer is blocked by author(s)
+  if (blocked) return <BlockedProfileNotice />; // ✅ NEW
+
+  // ✅ Show message if there are no posts
+  if (totalCount === 0) {
+    return <p>No posts found for this language.</p>; // ✅ NEW
+  }
 
   return (
     <main>

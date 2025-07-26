@@ -5,6 +5,7 @@ import ImageWithFallback from '@/app/components/global/ImageWithFallback';
 import FollowButton from '@/app/components/blog/posts/FollowPostButton';
 import Pagination from '@/app/components/global/pagination/Pagination';
 import AuthorInfo from '@/app/components/user/AuthorInfo';
+import BlockedProfileNotice from '@/app/components/user/BlockProfileNotice'; // ✅ Correct import
 import Link from 'next/link';
 import { capitalizeFirstLetter } from '@/app/utils/capitalizeFirstLetter';
 
@@ -23,8 +24,16 @@ export default async function CountryPage({ params, searchParams }: CountryPageP
   const currentPage = Number(searchParams?.page) || 1;
   const pageSize = 3;
 
-  const { posts, totalCount } = await getPostsByCountrySlug(params.slug, userId, currentPage, pageSize);
+  const { posts, totalCount, blocked } = await getPostsByCountrySlug(
+    params.slug,
+    userId,
+    currentPage,
+    pageSize
+  );
+
   const totalPages = Math.ceil(totalCount / pageSize);
+
+  if (blocked) return <BlockedProfileNotice />; // ✅ Respect block status
 
   return (
     <main>
